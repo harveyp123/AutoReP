@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import os
 import torch.nn.functional as F
+import torch.nn.init as init
+
 import logging
 from models_util import *
 from models_cifar import *
@@ -12,18 +14,40 @@ def replace_relu(model, replacement_fn):
             model._modules[name] = replacement_fn
         else:
             replace_relu(module, replacement_fn)
+def _weights_init(m):
+    classname = m.__class__.__name__
+    #print(classname)
+    if isinstance(m, nn.Linear) or isinstance(m, nn.Conv2d):
+        init.kaiming_normal_(m.weight)
+class SoftTarget(nn.Module):
+	'''
+	Distilling the Knowledge in a Neural Network
+	https://arxiv.org/pdf/1503.02531.pdf
+	'''
+	def __init__(self, T):
+		super(SoftTarget, self).__init__()
+		self.T = T
 
+	def forward(self, out_s, out_t):
+		loss = F.kl_div(F.log_softmax(out_s/self.T, dim=1),
+						F.softmax(out_t/self.T, dim=1),
+						reduction='batchmean') * self.T * self.T
+
+		return loss
+        
 ### Model with ReLU Replacement(RP)
 class model_ReLU_RP(nn.Module):
     def __init__(self, config):
         super().__init__()
         # self.model = model
         #### Initialize model architecture
+        self.arch = config.arch
         self.model = eval(config.arch + '()')
+        self.model.apply(_weights_init)
         self.Num_mask = config.Num_mask #### Initialize how many masks
         self.x_size = config.x_size #### Input image size, for example in cifar 10, it's [1, 3, 32, 32]
         self.sel_mask = 0
-        ReLU_masked_model = eval(config.act_type + '()') #ReLU_masked()
+        ReLU_masked_model = eval(config.act_type + '(config)') #ReLU_masked()
         replace_relu(self, ReLU_masked_model)
         #### Get the name and model_stat of sparse ReLU model ####
         self._ReLU_sp_models = []
@@ -86,6 +110,9 @@ class model_ReLU_RP(nn.Module):
             model_stat.sel_mask = sel_mask
     def change_dropout_ratio(self, dropout_ratio = 0):
         for model_stat in self.dropout_models:
+            model_stat.p = dropout_ratio
+    def change_mask_dropout_ratio(self, dropout_ratio = 0):
+        for model_stat in self._ReLU_sp_models:
             model_stat.p = dropout_ratio
     def train_fz_bn(self, freeze_bn=True, freeze_bn_affine=True, mode=True):
         """

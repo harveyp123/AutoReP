@@ -2,6 +2,7 @@
 import os
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import numpy as np
 from tensorboardX import SummaryWriter
 from util_func.config import TrainCifarConfig
@@ -14,6 +15,9 @@ import torch.utils.data
 import pytorch_warmup as warmup
 from models_util import *
 from models_cifar import *
+from train_util import *
+import math
+import copy
 config = TrainCifarConfig()
 
 device = torch.device("cuda")
@@ -38,10 +42,13 @@ def main():
     torch.cuda.manual_seed_all(config.seed)
 
     torch.backends.cudnn.benchmark = True
-
-    criterion = nn.CrossEntropyLoss().to(device)
-
     model = model_ReLU_RP(config)
+    criterion = nn.CrossEntropyLoss().to(device)
+    if config.distil:
+        config_teacher = copy.deepcopy(config)
+        config_teacher.act_type = 'nn.ReLU'
+        config_teacher.arch = config_teacher.teacher_arch
+        teacher_model = model_ReLU_RP(config_teacher)
     model.criterion = criterion
     # if 'vgg' in config.arch:
     #     model = vgg.__dict__[config.arch](config, criterion, config.act_type, config.pool_type)
@@ -57,12 +64,17 @@ def main():
     if config.pretrained_path:
         print("==> Load pretrained")
         model.load_pretrained(pretrained_path = config.pretrained_path)
-    
+    if config.distil:
+        teacher_model.load_pretrained(pretrained_path = config.teacher_path)
     if(config.checkpoint_path):
         config.start_epoch, best_top1 = model.load_check_point(check_point_path = config.checkpoint_path)
     
     model = model.to(device)
-
+    if config.distil:
+        teacher_model = teacher_model.to(device)
+        teacher_model.eval()
+        criterion_kd = SoftTarget(4.0).to(device)
+    
     if config.dataset == "cifar10":
         normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                         std=[0.229, 0.224, 0.225])
@@ -120,59 +132,69 @@ def main():
         )
         # model.print_alphas(logger)
 
-        validate(val_loader, model, 0, len(val_loader))
+        validate(val_loader, model, 0, len(val_loader), device, config, logger, writer)
         return
         # # ----------------------------
     # weights optimizer
-    w_optim = torch.optim.SGD(model.weights(), config.w_lr, momentum=config.w_momentum,
+    w_optim = torch.optim.SGD(model.weights(), config.w_mask_lr, momentum=config.w_momentum,
                               weight_decay=config.w_weight_decay)
     # alphas optimizer
     if config.act_type != 'nn.ReLU':
         alpha_optim = torch.optim.Adam(model.alpha_aux(), config.alpha_lr, betas=(0.5, 0.999),
                                     weight_decay=config.alpha_weight_decay)
-    if config.optim == 'cosine_rst':
-        # lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(w_optim, 1, T_mult=2, eta_min=config.w_lr_min) #, last_epoch = config.epochs
-        T_mult = (config.epochs - config.mask_epochs) // config.mask_epochs
-        lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(w_optim, config.mask_epochs, T_mult=T_mult, eta_min=config.w_lr_min) #, last_epoch = config.epochs
-    else:
-        lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            w_optim, config.epochs, eta_min=config.w_lr_min)
+          
+    # param_groups = [
+    #     {'optimizer':w_optim,'T_max':config.mask_epochs, 'eta_min':config.w_lr_min},
+    #     {'optimizer':alpha_optim,'T_max':config.mask_epochs}
+    # ]
+ 
+    lr_scheduler_w = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer = w_optim, T_max = config.mask_epochs, 
+                        eta_min = config.w_lr_min)
+    if config.act_type != 'nn.ReLU':
+        lr_scheduler_alpha = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer = alpha_optim, T_max = config.mask_epochs)        
     # warmup_scheduler = warmup.UntunedLinearWarmup(alpha_optim)
 
     #### Freeze batch normalization ####
-    model.train_fz_bn(freeze_bn=True)
+    # model.train_fz_bn(freeze_bn=True)
+    model.train_fz_bn(freeze_bn=False)
+    # model.change_mask_dropout_ratio(config.mask_dropout)
     # lambda_l1 = 1e-6
     # lambda_l2 = 5e-4
     lambda0 = config.lamda
     # training loop
     best_top1 = 0.
-    for epoch in range(config.start_epoch, config.epochs):
+
+    for epoch in range(config.start_epoch, config.mask_epochs):
         if config.act_type != 'nn.ReLU':
             model.update_sparse_list()
             model.print_sparse_list(logger)
 
-        # training with mask update
-        if epoch < config.mask_epochs:
-            if config.precision == 'full':
-                top1_train = train_mask(train_loader, model, w_optim, alpha_optim, lambda0, epoch)
+        if config.precision == 'full':
+            if(config.distil):
+                top1_train, global_density = train_mask_distil(train_loader, model, w_optim, alpha_optim, lambda0, teacher_model, criterion_kd, epoch, 
+                                                 device, config, logger, writer)
             else:
-                top1_train = train_mask_fp16(train_loader, model, w_optim, alpha_optim, lambda0, epoch)
-        # training without mask update
+                top1_train, global_density = train_mask(train_loader, model, w_optim, alpha_optim, lambda0, epoch, 
+                                                 device, config, logger, writer)
         else:
-            model.train_fz_bn(freeze_bn=False)
-            model.change_dropout_ratio(config.dropout)
-            if config.precision == 'full':
-                top1_train = train(train_loader, model, w_optim, epoch)
+            if(config.distil):
+                top1_train, global_density = train_mask_distil_fp16(train_loader, model, w_optim, alpha_optim, lambda0, teacher_model, criterion_kd, epoch, 
+                                                 device, config, logger, writer)
             else:
-                top1_train = train_fp16(train_loader, model, w_optim, epoch)
-        # adjust_learning_rate(w_optim, epoch)
-        lr_scheduler.step()
+                top1_train, global_density = train_mask_fp16(train_loader, model, w_optim, alpha_optim, lambda0, epoch, 
+                                                 device, config, logger, writer)
+        # training without mask update
+
+        # adjust_learning_rate(w_optim, epoch, config)
+        lr_scheduler_w.step()
+        lr_scheduler_alpha.step()
         # validation
         cur_step = (epoch+1) * len(train_loader)
-        top1 = validate(val_loader, model, epoch, cur_step)
+        top1 = validate(val_loader, model, epoch, cur_step, device, config, logger, writer)
 
         # save 
-        if epoch > config.mask_epochs:
+        # save 
+        if (config.sparsity - (1 - global_density) < 0.01):
             if best_top1 < top1:
                 best_top1 = top1
                 # best_genotype = genotype
@@ -181,354 +203,93 @@ def main():
                 is_best = False
             # utils.save_checkpoint(model, config.path, is_best)
             if is_best:
-                save_path = os.path.join(config.path, 'best.pth.tar')
+                save_path = os.path.join(config.path, 'best_mask_train.pth.tar')
             else:
-                save_path = os.path.join(config.path, 'checkpoint.pth.tar')
+                save_path = os.path.join(config.path, 'checkpoint_mask_train.pth.tar')
             model.save_checkpoint(epoch, best_top1, is_best, filename=save_path)
-            logger.info("Current best Prec@1 = {:.4%}".format(best_top1))
+            logger.info("Current mask training best Prec@1 = {:.4%}".format(best_top1))
+
+    #### Start to finetune ####
+    para_group = [{'params': model.weights(), 'initial_lr': config.w_lr}]
+    w_optim = torch.optim.SGD(para_group, config.w_lr, momentum=config.w_momentum,
+                              weight_decay=config.w_weight_decay)
+    # param_groups = [
+    #     {'optimizer':w_optim,'T_max':config.mask_epochs, 'eta_min':config.w_lr_min},
+    # ]
+    if config.optim == 'cosine_rst':
+        # lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(w_optim, 1, T_mult=2, eta_min=config.w_lr_min) #, last_epoch = config.epochs
+        T_mult = 2
+        lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(w_optim, 1, T_mult=T_mult, eta_min=config.w_lr_min) #, last_epoch = config.epochs
+    elif config.optim == 'cosine':
+        lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            w_optim, config.epochs, eta_min=config.w_lr_min)
+    elif config.optim == 'cosine_finetune':
+        lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            w_optim, T_max = 400, eta_min=config.w_lr_min, last_epoch= 400 - config.epochs)
+
+    # lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer = w_optim, T_max = config.epochs, 
+    #                     eta_min = config.w_lr_min)
+
+    model.train_fz_bn(freeze_bn=False)
+    model.change_dropout_ratio(config.dropout)
+    model.change_mask_dropout_ratio(config.mask_dropout)
+    best_top1 = 0.
+    for epoch in range(config.start_epoch, config.epochs):
+        if config.act_type != 'nn.ReLU':
+            model.update_sparse_list()
+            model.print_sparse_list(logger)
+
+        
+        if config.precision == 'full':
+            if(config.distil):
+                top1_train = train_distil(train_loader, model, w_optim, teacher_model, criterion_kd, epoch, 
+                                                 device, config, logger, writer)
+            else:
+                top1_train = train(train_loader, model, w_optim, epoch, 
+                                                 device, config, logger, writer)
+        else:
+            if(config.distil):
+                top1_train = train_distil_fp16(train_loader, model, w_optim, teacher_model, criterion_kd, epoch, 
+                                                 device, config, logger, writer)
+            else:
+                top1_train = train_fp16(train_loader, model, w_optim, epoch, 
+                                                 device, config, logger, writer)
+        # adjust_learning_rate(w_optim, epoch, config)
+        if config.optim == 'cos_modified':
+            cos_modified_learning_rate(w_optim, epoch, config)
+        else:
+            lr_scheduler.step()
+        # validation
+        cur_step = (epoch+1) * len(train_loader)
+        top1 = validate(val_loader, model, epoch, cur_step, device, config, logger, writer)
+
+        # save 
+        if best_top1 < top1:
+            best_top1 = top1
+            # best_genotype = genotype
+            is_best = True
+        else:
+            is_best = False
+        # utils.save_checkpoint(model, config.path, is_best)
+        if is_best:
+            save_path = os.path.join(config.path, 'best.pth.tar')
+        else:
+            save_path = os.path.join(config.path, 'checkpoint.pth.tar')
+        model.save_checkpoint(epoch, best_top1, is_best, filename=save_path)
+        logger.info("Current best Prec@1 = {:.4%}".format(best_top1))
 
         if (epoch % 20) == 0:
             logger.info("Perform validation on training dataset. ")
-            top1_train_wo_dropout = validate_train(train_loader, model, epoch, cur_step)
+            top1_train_wo_dropout = validate_train(train_loader, model, epoch, cur_step, device, config, logger, writer)
             logger.info("Final train Prec@1 = {:.4%}".format(top1_train_wo_dropout))
 
     logger.info("Final best validation Prec@1 = {:.4%}".format(best_top1))
     # logger.info("Best Genotype = {}".format(best_genotype))
 
-def train_mask(train_loader, model, w_optim, alpha_optim, lambda0, epoch):
-    """
-        Run one train epoch
-    """
-    top1 = utils.AverageMeter()
-    top5 = utils.AverageMeter()
-    losses = utils.AverageMeter()
-    cur_step = epoch*len(train_loader)
-    
-    # switch to train mode
-    total_mask = model._get_num_gates().item()
-    model.train()
-
-    for step, (input, target) in enumerate(train_loader):
-        N = input.size(0)
-        input = input.to(device, non_blocking=True)
-        target = target.to(device, non_blocking=True)
-
-        alpha_optim.zero_grad()
-        ### Compute cross entropy loss: ###
-        output = model(input)
-        ce_loss = model.criterion(output, target)
-
-        sparse_list = []
-        sparse_pert_list = []
-        l0_reg = 0
-        for name, param in model._alpha_aux[0]:
-            neuron_mask = STEFunction.apply(param)
-            l0_reg += torch.sum(neuron_mask)
-            sparse_list.append(torch.sum(neuron_mask).item())
-            sparse_pert_list.append(sparse_list[-1]/neuron_mask.numel())
-        global_density = l0_reg/total_mask
-        # compute gradient and do SGD step
-        loss = ce_loss + lambda0*(global_density)
-        loss.backward()
-        alpha_optim.step()
 
 
-        w_optim.zero_grad()
-        output = model(input)
-        ce_loss = model.criterion(output, target)
-        ce_loss.backward()
-        # gradient clipping
-        nn.utils.clip_grad_norm_(model.weights(), config.w_grad_clip)
-        w_optim.step()
-
-        output = output.float()
-        loss = loss.float()
-        # measure accuracy and record loss
-        prec1, prec5 = utils.accuracy(output, target, topk=(1, 5))
-        losses.update(loss.item(), N)
-        top1.update(prec1.item(), N)
-        top5.update(prec5.item(), N)
-
-        if step % config.print_freq == 0 or step == len(train_loader)-1:
-            logger.info(
-                "Train: [{:2d}/{}] Step {:03d}/{:03d} Loss {losses.avg:.3f} "
-                "Prec@(1,5) ({top1.avg:.1%}, {top5.avg:.1%})".format(
-                    epoch+1, config.epochs, step, len(train_loader)-1, losses=losses,
-                    top1=top1, top5=top5))
-            logger.info("layerwise density: " + str(sparse_list) + "\nlayerwise density percentage: "
-                        + str([ '%.3f' % elem for elem in sparse_pert_list]) + "\nGlobal density: "
-                        + str(global_density.item()))
-
-        writer.add_scalar('train/loss', loss.item(), cur_step)
-        writer.add_scalar('train/top1', prec1.item(), cur_step)
-        writer.add_scalar('train/top5', prec5.item(), cur_step)
-        cur_step += 1
-
-    logger.info("Train: [{:2d}/{}] Final Prec@1 {:.4%}".format(epoch+1, config.epochs, top1.avg))
-    return top1.avg
-
-def train_mask_fp16(train_loader, model, w_optim, alpha_optim, lambda0, epoch):
-    """
-        Run one train epoch
-    """
-    top1 = utils.AverageMeter()
-    top5 = utils.AverageMeter()
-    losses = utils.AverageMeter()
-    cur_step = epoch*len(train_loader)
-    
-    # switch to train mode
-    total_mask = model._get_num_gates().item()
-    model.train()
-    use_amp = True
-    scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
-    for step, (input, target) in enumerate(train_loader):
-        N = input.size(0)
-        input = input.to(device, non_blocking=True)
-        target = target.to(device, non_blocking=True)
-
-        alpha_optim.zero_grad()
-        ### Compute cross entropy loss: ###
-        with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=use_amp):
-            output = model(input)
-            ce_loss = model.criterion(output, target)
-
-        sparse_list = []
-        sparse_pert_list = []
-        l0_reg = 0
-        for name, param in model._alpha_aux[0]:
-            neuron_mask = STEFunction.apply(param)
-            l0_reg += torch.sum(neuron_mask)
-            sparse_list.append(torch.sum(neuron_mask).item())
-            sparse_pert_list.append(sparse_list[-1]/neuron_mask.numel())
-        global_sparsity = l0_reg/total_mask
-        # compute gradient and do SGD step
-        loss = ce_loss + lambda0*(global_sparsity)
-        # loss.backward()
-        # alpha_optim.step()
-        scaler.scale(loss).backward()
-        scaler.step(alpha_optim)
-        scaler.update()
-
-        w_optim.zero_grad()
-        with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=use_amp):
-            output = model(input)
-            ce_loss = model.criterion(output, target)
-        # ce_loss.backward()
-        scaler.scale(ce_loss).backward()
-        scaler.unscale_(w_optim)
-        # gradient clipping
-        nn.utils.clip_grad_norm_(model.weights(), config.w_grad_clip)
-        # w_optim.step()
-        scaler.step(w_optim)
-        scaler.update()
-
-        output = output.float()
-        loss = loss.float()
-        # measure accuracy and record loss
-        prec1, prec5 = utils.accuracy(output, target, topk=(1, 5))
-        losses.update(loss.item(), N)
-        top1.update(prec1.item(), N)
-        top5.update(prec5.item(), N)
-
-        if step % config.print_freq == 0 or step == len(train_loader)-1:
-            logger.info(
-                "Train: [{:2d}/{}] Step {:03d}/{:03d} Loss {losses.avg:.3f} "
-                "Prec@(1,5) ({top1.avg:.1%}, {top5.avg:.1%})".format(
-                    epoch+1, config.epochs, step, len(train_loader)-1, losses=losses,
-                    top1=top1, top5=top5))
-            logger.info("layerwise density: " + str(sparse_list) + "\nlayerwise density percentage: "
-                        + str([ '%.3f' % elem for elem in sparse_pert_list]) + "\nGlobal density: "
-                        + str(global_sparsity.item()))
-
-        writer.add_scalar('train/loss', loss.item(), cur_step)
-        writer.add_scalar('train/top1', prec1.item(), cur_step)
-        writer.add_scalar('train/top5', prec5.item(), cur_step)
-        cur_step += 1
-
-    logger.info("Train: [{:2d}/{}] Final Prec@1 {:.4%}".format(epoch+1, config.epochs, top1.avg))
-    return top1.avg
-
-def train(train_loader, model, w_optim, epoch):
-    """
-        Run one train epoch
-    """
-    top1 = utils.AverageMeter()
-    top5 = utils.AverageMeter()
-    losses = utils.AverageMeter()
-    cur_step = epoch*len(train_loader)
-    
-    # switch to train mode
-    total_mask = model._get_num_gates().item()
-    model.train()
-    for step, (input, target) in enumerate(train_loader):
-        N = input.size(0)
-        input = input.to(device, non_blocking=True)
-        target = target.to(device, non_blocking=True)
-        w_optim.zero_grad()
-        output = model(input)
-        loss = model.criterion(output, target)
-        loss.backward()
-        # gradient clipping
-        nn.utils.clip_grad_norm_(model.weights(), config.w_grad_clip)
-        w_optim.step()
-
-        output = output.float()
-        loss = loss.float()
-        # measure accuracy and record loss
-        prec1, prec5 = utils.accuracy(output, target, topk=(1, 5))
-        losses.update(loss.item(), N)
-        top1.update(prec1.item(), N)
-        top5.update(prec5.item(), N)
-
-        if step % config.print_freq == 0 or step == len(train_loader)-1:
-            logger.info(
-                "Train: [{:2d}/{}] Step {:03d}/{:03d} Loss {losses.avg:.3f} "
-                "Prec@(1,5) ({top1.avg:.1%}, {top5.avg:.1%})".format(
-                    epoch+1, config.epochs, step, len(train_loader)-1, losses=losses,
-                    top1=top1, top5=top5))
-        writer.add_scalar('train/loss', loss.item(), cur_step)
-        writer.add_scalar('train/top1', prec1.item(), cur_step)
-        writer.add_scalar('train/top5', prec5.item(), cur_step)
-        cur_step += 1
-
-    logger.info("Train: [{:2d}/{}] Final Prec@1 {:.4%}".format(epoch+1, config.epochs, top1.avg))
-    return top1.avg         
-
-def train_fp16(train_loader, model, w_optim, epoch):
-    """
-        Run one train epoch
-    """
-    top1 = utils.AverageMeter()
-    top5 = utils.AverageMeter()
-    losses = utils.AverageMeter()
-    cur_step = epoch*len(train_loader)
-    
-    # switch to train mode
-    total_mask = model._get_num_gates().item()
-    model.train()
-    use_amp = True
-    scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
-    
-    for step, (input, target) in enumerate(train_loader):
-        N = input.size(0)
-        input = input.to(device, non_blocking=True)
-        target = target.to(device, non_blocking=True)
-        # w_optim.zero_grad()
-        # output = model(input)
-        # loss = model.criterion(output, target)
-        # loss.backward()
-        # # gradient clipping
-        # nn.utils.clip_grad_norm_(model.weights(), config.w_grad_clip)
-        # w_optim.step()
-        w_optim.zero_grad()
-        with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=use_amp):
-            output = model(input)
-            loss = model.criterion(output, target)
-        # ce_loss.backward()
-        scaler.scale(loss).backward()
-        scaler.unscale_(w_optim)
-        # gradient clipping
-        nn.utils.clip_grad_norm_(model.weights(), config.w_grad_clip)
-        # w_optim.step()
-        scaler.step(w_optim)
-        scaler.update()
-
-        output = output.float()
-        loss = loss.float()
-        # measure accuracy and record loss
-        prec1, prec5 = utils.accuracy(output, target, topk=(1, 5))
-        losses.update(loss.item(), N)
-        top1.update(prec1.item(), N)
-        top5.update(prec5.item(), N)
-
-        if step % config.print_freq == 0 or step == len(train_loader)-1:
-            logger.info(
-                "Train: [{:2d}/{}] Step {:03d}/{:03d} Loss {losses.avg:.3f} "
-                "Prec@(1,5) ({top1.avg:.1%}, {top5.avg:.1%})".format(
-                    epoch+1, config.epochs, step, len(train_loader)-1, losses=losses,
-                    top1=top1, top5=top5))
-        writer.add_scalar('train/loss', loss.item(), cur_step)
-        writer.add_scalar('train/top1', prec1.item(), cur_step)
-        writer.add_scalar('train/top5', prec5.item(), cur_step)
-        cur_step += 1
-
-    logger.info("Train: [{:2d}/{}] Final Prec@1 {:.4%}".format(epoch+1, config.epochs, top1.avg))
-    return top1.avg 
 
 
-def validate(valid_loader, model, epoch, cur_step):
-    top1 = utils.AverageMeter()
-    top5 = utils.AverageMeter()
-    losses = utils.AverageMeter()
-
-    model.eval()
-
-    with torch.no_grad():
-        for step, (X, y) in enumerate(valid_loader):
-            X, y = X.to(device, non_blocking=True), y.to(device, non_blocking=True)
-            N = X.size(0)
-
-            logits = model(X)
-            loss = model.criterion(logits, y)
-
-            prec1, prec5 = utils.accuracy(logits, y, topk=(1, 5))
-            losses.update(loss.item(), N)
-            top1.update(prec1.item(), N)
-            top5.update(prec5.item(), N)
-
-            if step % config.print_freq == 0 or step == len(valid_loader)-1:
-                logger.info(
-                    "Valid: [{:2d}/{}] Step {:03d}/{:03d} Loss {losses.avg:.3f} "
-                    "Prec@(1,5) ({top1.avg:.1%}, {top5.avg:.1%})".format(
-                        epoch+1, config.epochs, step, len(valid_loader)-1, losses=losses,
-                        top1=top1, top5=top5))             
-    writer.add_scalar('val/loss', losses.avg, cur_step)
-    writer.add_scalar('val/top1', top1.avg, cur_step)
-    writer.add_scalar('val/top5', top5.avg, cur_step)
-
-    logger.info("Valid: [{:2d}/{}] Final Prec@1 {:.4%}".format(epoch+1, config.epochs, top1.avg))
-
-    return top1.avg
-
-def validate_train(train_loader, model, epoch, cur_step):
-    top1 = utils.AverageMeter()
-    top5 = utils.AverageMeter()
-    losses = utils.AverageMeter()
-
-    model.eval()
-
-    with torch.no_grad():
-        for step, (X, y) in enumerate(train_loader):
-            X, y = X.to(device, non_blocking=True), y.to(device, non_blocking=True)
-            N = X.size(0)
-
-            logits = model(X)
-            loss = model.criterion(logits, y)
-
-            prec1, prec5 = utils.accuracy(logits, y, topk=(1, 5))
-            losses.update(loss.item(), N)
-            top1.update(prec1.item(), N)
-            top5.update(prec5.item(), N)
-
-            if step % config.print_freq == 0 or step == len(train_loader)-1:
-                logger.info(
-                    "Valid on training dataset: [{:2d}/{}] Step {:03d}/{:03d} Loss {losses.avg:.3f} "
-                    "Prec@(1,5) ({top1.avg:.1%}, {top5.avg:.1%})".format(
-                        epoch+1, config.epochs, step, len(train_loader)-1, losses=losses,
-                        top1=top1, top5=top5))               
-    logger.info("Valid on training dataset: [{:2d}/{}] Final Prec@1 {:.4%}".format(epoch+1, config.epochs, top1.avg))
-
-    return top1.avg
-
-def adjust_learning_rate(optimizer, epoch):
-    # """Sets the learning rate to the initial LR decayed by 2 every 30 epochs"""
-    # lr = config.w_lr * (0.5 ** (epoch // 30))
-    """Sets the learning rate to the initial LR decayed by 2 every 30 epochs"""
-    lr = config.w_lr * (0.5 ** (epoch // config.w_decay_epoch))
-    # """Sets the learning rate to the initial LR decayed by 2 every 15 epochs"""
-    # lr = config.w_lr * (0.5 ** (epoch // 15))
-    for param_group in optimizer.param_groups:
-        param_group['lr'] = lr
 
 
 

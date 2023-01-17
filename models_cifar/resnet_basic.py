@@ -247,6 +247,12 @@ def _resnet(block, layers, num_classes=10):
     model = ResNet_Gated( block, layers, num_classes = num_classes)
     return model
 
+def resnet9(num_classes = 10):
+    """Constructs a ResNet-8 model.
+    """
+    return _resnet(BasicBlock, [1, 1, 1, 1],  
+                num_classes
+            )
 
 def resnet18(num_classes = 10):
     """Constructs a ResNet-18 model.

@@ -1,2 +1,0 @@
-# AutoReDuce
-Automatic ReLU Reduction 

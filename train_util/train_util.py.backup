@@ -27,17 +27,16 @@ def train_mask_distil(train_loader, model, w_optim, alpha_optim, lambda0, teache
         ### Compute cross entropy loss: ###
         output = model(input)
         ce_loss = model.criterion(output, target)
-        global_density, sparse_list, sparse_pert_list = model._ReLU_sp_models[0].mask_density_forward()
-        # sparse_list = []
-        # sparse_pert_list = []
-        # l0_reg = 0
-        # for name, param in model._alpha_aux[0]:
-        #     neuron_mask = STEFunction.apply(param)
-        #     l0_reg += torch.sum(neuron_mask)
-        #     sparse_list.append(torch.sum(neuron_mask).item())
-        #     sparse_pert_list.append(sparse_list[-1]/neuron_mask.numel())
-        # global_density = l0_reg/total_mask 
 
+        sparse_list = []
+        sparse_pert_list = []
+        l0_reg = 0
+        for name, param in model._alpha_aux[0]:
+            neuron_mask = STEFunction.apply(param)
+            l0_reg += torch.sum(neuron_mask)
+            sparse_list.append(torch.sum(neuron_mask).item())
+            sparse_pert_list.append(sparse_list[-1]/neuron_mask.numel())
+        global_density = l0_reg/total_mask 
         # compute gradient and do SGD step
         loss = ce_loss + lambda0*(F.relu(global_density - (1-config.sparsity)))
         loss.backward()
@@ -107,17 +106,15 @@ def train_mask_distil_fp16(train_loader, model, w_optim, alpha_optim, lambda0, t
             output = model(input)
             ce_loss = model.criterion(output, target)
 
-        global_density, sparse_list, sparse_pert_list = model._ReLU_sp_models[0].mask_density_forward()
-        # sparse_list = []
-        # sparse_pert_list = []
-
-        # l0_reg = 0
-        # for name, param in model._alpha_aux[0]:
-        #     neuron_mask = STEFunction.apply(param)
-        #     l0_reg += torch.sum(neuron_mask)
-        #     sparse_list.append(torch.sum(neuron_mask).item())
-        #     sparse_pert_list.append(sparse_list[-1]/neuron_mask.numel())
-        # global_density = l0_reg/total_mask
+        sparse_list = []
+        sparse_pert_list = []
+        l0_reg = 0
+        for name, param in model._alpha_aux[0]:
+            neuron_mask = STEFunction.apply(param)
+            l0_reg += torch.sum(neuron_mask)
+            sparse_list.append(torch.sum(neuron_mask).item())
+            sparse_pert_list.append(sparse_list[-1]/neuron_mask.numel())
+        global_density = l0_reg/total_mask
         # compute gradient and do SGD step
         loss = ce_loss + lambda0*(F.relu(global_density - (1-config.sparsity)))
         # loss.backward()
@@ -305,16 +302,16 @@ def train_mask(train_loader, model, w_optim, alpha_optim, lambda0, epoch, device
         ### Compute cross entropy loss: ###
         output = model(input)
         ce_loss = model.criterion(output, target)
-        global_density, sparse_list, sparse_pert_list = model._ReLU_sp_models[0].mask_density_forward()
-        # sparse_list = []
-        # sparse_pert_list = []
-        # l0_reg = 0
-        # for name, param in model._alpha_aux[0]:
-        #     neuron_mask = STEFunction.apply(param)
-        #     l0_reg += torch.sum(neuron_mask)
-        #     sparse_list.append(torch.sum(neuron_mask).item())
-        #     sparse_pert_list.append(sparse_list[-1]/neuron_mask.numel())
-        # global_density = l0_reg/total_mask 
+
+        sparse_list = []
+        sparse_pert_list = []
+        l0_reg = 0
+        for name, param in model._alpha_aux[0]:
+            neuron_mask = STEFunction.apply(param)
+            l0_reg += torch.sum(neuron_mask)
+            sparse_list.append(torch.sum(neuron_mask).item())
+            sparse_pert_list.append(sparse_list[-1]/neuron_mask.numel())
+        global_density = l0_reg/total_mask 
         # compute gradient and do SGD step
         loss = ce_loss + lambda0*(F.relu(global_density - (1-config.sparsity)))
         loss.backward()
@@ -379,16 +376,16 @@ def train_mask_fp16(train_loader, model, w_optim, alpha_optim, lambda0, epoch, d
         with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=use_amp):
             output = model(input)
             ce_loss = model.criterion(output, target)
-        global_density, sparse_list, sparse_pert_list = model._ReLU_sp_models[0].mask_density_forward()
-        # sparse_list = []
-        # sparse_pert_list = []
-        # l0_reg = 0
-        # for name, param in model._alpha_aux[0]:
-        #     neuron_mask = STEFunction.apply(param)
-        #     l0_reg += torch.sum(neuron_mask)
-        #     sparse_list.append(torch.sum(neuron_mask).item())
-        #     sparse_pert_list.append(sparse_list[-1]/neuron_mask.numel())
-        # global_density = l0_reg/total_mask
+
+        sparse_list = []
+        sparse_pert_list = []
+        l0_reg = 0
+        for name, param in model._alpha_aux[0]:
+            neuron_mask = STEFunction.apply(param)
+            l0_reg += torch.sum(neuron_mask)
+            sparse_list.append(torch.sum(neuron_mask).item())
+            sparse_pert_list.append(sparse_list[-1]/neuron_mask.numel())
+        global_density = l0_reg/total_mask
         # compute gradient and do SGD step
         loss = ce_loss + lambda0*(F.relu(global_density - (1-config.sparsity)))
         # loss.backward()

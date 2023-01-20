@@ -41,6 +41,7 @@ class model_ReLU_RP(nn.Module):
         super().__init__()
         # self.model = model
         #### Initialize model architecture
+        self.config = config
         self.arch = config.arch
         self.model = eval(config.arch + '()')
         self.model.apply(_weights_init)
@@ -84,7 +85,13 @@ class model_ReLU_RP(nn.Module):
                 self._alpha_aux[num].append((name, parameter))                 
             else: 
                 self._weights.append((name, parameter))
-        
+        self._alpha_mask = {}
+        for i in range(self.Num_mask):
+            self._alpha_mask[i] = []
+        for name, parameter in self.named_parameters():
+            if 'alpha_mask' in name:
+                num = int(name.split("_")[-1])
+                self._alpha_mask[num].append((name, parameter))                 
     def weights(self):
         for n, p in self._weights:
             yield p
@@ -189,14 +196,25 @@ class model_ReLU_RP(nn.Module):
         total_count_global = 0
         sparsity_count_global = 0
         with torch.no_grad():
-            for name, param in self._alpha_aux[self.sel_mask]:
-                weight_mask = 1 - STEFunction.apply(param)
-                total_count = weight_mask.numel()
-                sparsity_count = torch.sum(weight_mask).item()
-                sparsity_pert = sparsity_count/total_count
-                self.sparse_list.append([name, total_count, sparsity_count, sparsity_pert])
-                total_count_global += total_count
-                sparsity_count_global += sparsity_count
+            if 'relay' in self.config.act_type:
+                for name, param in self._alpha_mask[self.sel_mask]:
+                    weight_mask = param.data
+                    total_count = weight_mask.numel()
+                    sparsity_count = torch.sum(weight_mask).item()
+                    sparsity_pert = sparsity_count/total_count
+                    self.sparse_list.append([name, total_count, sparsity_count, sparsity_pert])
+                    total_count_global += total_count
+                    sparsity_count_global += sparsity_count
+                pass
+            else:
+                for name, param in self._alpha_aux[self.sel_mask]:
+                    weight_mask = 1 - STEFunction.apply(param)
+                    total_count = weight_mask.numel()
+                    sparsity_count = torch.sum(weight_mask).item()
+                    sparsity_pert = sparsity_count/total_count
+                    self.sparse_list.append([name, total_count, sparsity_count, sparsity_pert])
+                    total_count_global += total_count
+                    sparsity_count_global += sparsity_count
         sparsity_pert_global = sparsity_count_global/total_count_global
         self.global_sparsity = [total_count_global, sparsity_count_global, sparsity_pert_global]
     def print_sparse_list(self, logger):

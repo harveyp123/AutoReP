@@ -52,14 +52,19 @@ The experiment is extremely hard to tune, but here are few versions that I tuned
 We ran 4 combinations in the bash scripts: <br />
     "```--sparsity 0.5 --mask_dropout 0.01```" (ACC ``` 92.26%```) <br />
     "```--sparsity 0.9 --mask_dropout 0.01```" (ACC ``` 88.89%```) <br />
+    "```--sparsity 0.95 --mask_dropout 0.01```" (ACC ``` 87.59%```) <br />
     "```--sparsity 0.5 --mask_dropout 0.00```" (ACC ``` 92.12%```) <br />
     "```--sparsity 0.9 --mask_dropout 0.00```" (ACC ``` 88.88%```) <br />
+    "```--sparsity 0.9 --mask_dropout 0.00```" (ACC ``` 87.70%```) <br />
+    
 
     - The checkpoint and log file location folder: <br />
 "```train_cifar/resnet18__cifar10/cosine_mask_dropout_0.01sp0.5wm_lr0.02mep100_baseline```" (ACC ``` 92.26%```) <br />
 "```train_cifar/resnet18__cifar10/cosine_mask_dropout_0.01sp0.9wm_lr0.02mep100_baseline```" (ACC ``` 88.89%```)<br />
+"```train_cifar/resnet18__cifar10/cosine_mask_dropout_0.01sp0.95wm_lr0.02mep100_baseline```" (ACC ``` 87.59%```)<br />
 "```train_cifar/resnet18__cifar10/cosine_sp0.5wm_lr0.02mep100_baseline```" (ACC ``` 92.12%```) <br />
 "```train_cifar/resnet18__cifar10/cosine_sp0.9wm_lr0.02mep100_baseline```" (ACC ``` 88.88%```) <br />
+"```train_cifar/resnet18__cifar10/cosine_sp0.95wm_lr0.02mep100_baseline```" (ACC ``` 87.70%```) <br />
 - Step 2: Finetuning ReLU replacement mask ("```resnet18```"): 
     ```bash
     bash scripts/scripts_relu_prune_finetune.sh
@@ -69,6 +74,7 @@ We ran 4 combinations in the bash scripts: <br />
     - The checkpoint and log file location folder: <br />
 "```train_cifar/resnet18__cifar10/cosine_mask_dropout_0.01sp0.5lr0.01ep100_baseline```" (ReLU counts: ```91,709```, ACC ``` 92.73%```) <br /> 
 "```train_cifar/resnet18__cifar10/cosine_mask_dropout_0.01sp0.9lr0.01ep100_baseline```" (ReLU counts: ```18,593```, ACC ``` 89.40%```) <br />
+"```train_cifar/resnet18__cifar10/cosine_mask_dropout_0.01sp0.95lr0.01ep100_baseline```" (ReLU counts: ```9,367```, ACC ``` 88.29%```) <br />
     - 0.5 sparsity with ``` 92.73% ``` accuracy is nearly the best that I can get for low ReLU pruning ratio. The hyperparameter combination almost achieved the best model accuracy without overfit or underfit. <br />
     For high ReLU sparsity ratio (0.9 sparsity), you can still improve the accuracy by around ``` 0.4% ``` by deleting the maskdropout or tune the learning rate. 
 - Step 3: Repeat same steps 1 and 2 for "```ResNet18```" architecture: 
@@ -89,8 +95,84 @@ We ran 4 combinations in the bash scripts: <br />
 "```train_cifar/ResNet18__cifar10/cosine_mask_dropout_0.01sp0.964lr0.01ep100_baseline```" (ReLU counts: ```19,887```, ACC ``` 84.78%```) <br />
     - For cases where ReLU count is low, the ```ACC/ReLU_count``` performance is not as good as smaller model resnet18
 
+## 3. Add Hysteresis Loop into Gated Mask function:
+The experiment shares similar settings as [Sec. 2](#2-run-purely-relu-pruning-optional). However, the forward part of gated mask is a hysteresis loop function rather than simple gated mask as ```f(x) = x > 0```. The backward follows the same STE function as gated mask backward. 
 
-## 3. Run ReLU replacement (pruning) with (ax^2 + bx) function:
+The hysteresis function looks like this: 
+
+![Alt text](figure/Hysteresis.svg)
+
+The hysteresis function can be described as:
+```python
+def Hysteresis(now_state, in_val, threshold):
+    if now_state == 1:
+        if in_val < (-1) * threshold:
+            now_state = 0
+    else:
+        if in_val > threshold:
+            now_state = 1
+    return now_state
+```
+The threshold is a hyper-parameter to adjust the size of hysteresis loop. 
+
+Here are the steps to explore the threshold impact on training result: 
+- Step 1: We run the mask training experiment with different threshold setting for "```resnet18```" architecture: 
+    ```bash
+    bash scripts/scripts_relu_prune_relay_0.001.sh
+    ### Wait to be finished
+    bash scripts/scripts_relu_prune_relay_0.002.sh
+    ### Wait to be finished
+    bash scripts/scripts_relu_prune_relay_0.003.sh
+    ```
+    - We use ```--act_type ReLU_masked_spgrad_relay``` to setup the ReLU with gated mask and hysteresis loop for updating the mask. We use ```--threshold 0.001``` to set up the threshold, other thing have similar setting as [Sec. 2](#2-run-purely-relu-pruning-optional). 
+    - The checkpoint and log file location folder for **threshold = 0.001**:
+"```train_cifar_relay/resnet18__cifar10_relay_0.001/cosine_mask_dropout_0.01sp0.5wm_lr0.02mep100_baseline```" (ReLU counts: ```93,827```, ACC ``` 92.33%```) <br /> 
+"```train_cifar_relay/resnet18__cifar10_relay_0.001/cosine_mask_dropout_0.01sp0.9wm_lr0.02mep100_baseline```" (ReLU counts: ```18,833```, ACC ``` 89.19%```) <br /> 
+"```train_cifar_relay/resnet18__cifar10_relay_0.001/cosine_sp0.5wm_lr0.02mep100_baseline```" (ReLU counts: ```91,577```, ACC ``` 92.20%```) <br /> 
+"```train_cifar_relay/resnet18__cifar10_relay_0.001/cosine_sp0.9wm_lr0.02mep100_baseline```" (ReLU counts: ```18,820```, ACC ``` 89.19%```) <br /> 
+    - The checkpoint and log file location folder for **threshold = 0.002**:
+"```train_cifar_relay/resnet18__cifar10_relay_0.002/cosine_mask_dropout_0.01sp0.5wm_lr0.02mep100_baseline```" (ReLU counts: ```91,752```, ACC ```92.52%```) <br /> 
+"```train_cifar_relay/resnet18__cifar10_relay_0.002/cosine_mask_dropout_0.01sp0.9wm_lr0.02mep100_baseline```" (ReLU counts: ```18,831```, ACC ```89.48%```) <br /> 
+"```train_cifar_relay/resnet18__cifar10_relay_0.002/cosine_sp0.5wm_lr0.02mep100_baseline```" (ReLU counts: ```88,400```, ACC ```92.20%```) <br /> 
+"```train_cifar_relay/resnet18__cifar10_relay_0.002/cosine_sp0.9wm_lr0.02mep100_baseline```" (ReLU counts: ```18,820```, ACC ```89.30%```) <br /> 
+    - The checkpoint and log file location folder for **threshold = 0.003**:
+"```train_cifar_relay/resnet18__cifar10_relay_0.003/cosine_mask_dropout_0.01sp0.5wm_lr0.02mep100_baseline```" (ReLU counts: ```94,157```, ACC ```92.63%```) <br /> 
+"```train_cifar_relay/resnet18__cifar10_relay_0.003/cosine_mask_dropout_0.01sp0.9wm_lr0.02mep100_baseline```" (ReLU counts: ```18,830```, ACC ```89.42%```) <br /> 
+"```train_cifar_relay/resnet18__cifar10_relay_0.003/cosine_mask_dropout_0.01sp0.95wm_lr0.02mep100_baseline```" (ReLU counts: ```9,416```, ACC ```88.10%```) <br /> 
+"```train_cifar_relay/resnet18__cifar10_relay_0.003/cosine_sp0.5wm_lr0.02mep100_baseline```" (ReLU counts: ```94,167```, ACC ```92.22%```) <br /> 
+"```train_cifar_relay/resnet18__cifar10_relay_0.003/cosine_sp0.9wm_lr0.02mep100_baseline```" (ReLU counts: ```18,840```, ACC ```89.47%```) <br /> 
+"```train_cifar_relay/resnet18__cifar10_relay_0.003/cosine_sp0.95wm_lr0.02mep100_baseline```" (ReLU counts: ```9,415```, ACC ```88.43%```) <br /> 
+    - It can be concluded that increase the threshold will help gated mask to converge faster, and may potentially lead to higher accuracy at high sparsity. 
+
+    Some other exploration (reduced  **w_lr**):
+    ```bash
+    bash scripts/scripts_relu_prune_relay_0.003v2.sh
+    ```
+    - The experiment uses lower w_lr, ```w_lr = 0.01```. The lower w_lr helps the model to converge faster, which leads to a higher accuracy at high sparsity. 
+
+- Step 2: We run the fixed mask finetuning experiment for "```resnet18```" architecture: 
+    ```bash
+    bash scripts/scripts_relu_prune_finetune_relay_0.001.sh
+    ### Wait to be finished
+    bash scripts/scripts_relu_prune_finetune_relay_0.002.sh
+    ### Wait to be finished
+    bash scripts/scripts_relu_prune_finetune_relay_0.003.sh
+    ```
+    - We still need to specify ```--act_type ReLU_masked_spgrad_relay threshold 0.001``` in the scripts. 
+    - The checkpoint and log file location folder for **threshold = 0.001**:
+"```train_cifar_relay/resnet18__cifar10_relay_0.001/cosine_mask_dropout_0.01sp0.5lr0.01ep100_baseline```" (ReLU counts: ```93,827```, ACC ```92.66%```) <br /> 
+"```train_cifar_relay/resnet18__cifar10_relay_0.001/cosine_mask_dropout_0.01sp0.9lr0.01ep100_baseline```" (ReLU counts: ```18,833```, ACC ```89.39%```) <br /> 
+    - The checkpoint and log file location folder for **threshold = 0.002**:
+"```train_cifar_relay/resnet18__cifar10_relay_0.002/cosine_mask_dropout_0.01sp0.5lr0.01ep100_baseline```" (ReLU counts: ```91,752```, ACC ```92.63%```) <br /> 
+"```train_cifar_relay/resnet18__cifar10_relay_0.002/cosine_mask_dropout_0.01sp0.9lr0.01ep100_baseline```" (ReLU counts: ```18,831```, ACC ```89.71%```) <br /> 
+    - The checkpoint and log file location folder for **threshold = 0.003**:
+"```train_cifar_relay/resnet18__cifar10_relay_0.003/cosine_mask_dropout_0.01sp0.5lr0.01ep100_baseline```" (ReLU counts: ```94,157```, ACC ```92.70%```) <br /> 
+"```train_cifar_relay/resnet18__cifar10_relay_0.003/cosine_mask_dropout_0.01sp0.9lr0.01ep100_baseline```" (ReLU counts: ```18,830```, ACC ```89.70%```) <br /> 
+"```train_cifar_relay/resnet18__cifar10_relay_0.003/cosine_mask_dropout_0.01sp0.95lr0.01ep100_baseline```" (ReLU counts: ```9416```, ACC ```88.70%```) <br /> 
+
+    - With around ```9416``` ReLU counts, the [Sec. 2](#2-run-purely-relu-pruning-optional) gives ``` 88.29%``` accuracy, where the Hysteresis Loop like gated mask forward function provides ```88.43``` accuracy without finetune and ``` 88.70%``` accuracy with finetune, which is a significant improvement. 
+
+## 4. Run ReLU replacement (pruning) with (ax^2 + bx) function:
 
 Here are the steps to run the ReLU replacement (pruning) with (ax^2 + bx) function: 
 - Step 1: We run the experiment for "```ResNet18```" architecture: 

@@ -152,7 +152,7 @@ class ReLU_masked_spgrad_relay(nn.Module):
         else:
             # print("Current used: ", getattr(self, "alpha_aux_{}_{}".format(self.current_feature, self.sel_mask)))
             if self.current_feature == 0:
-                print("Update mask!!!!!!")
+                # print("Update mask!!!!!!")
                 self.update_mask()
             neuron_relu_mask = STEFunction_relay.apply(getattr(self, "alpha_aux_{}_{}".format(self.current_feature, self.sel_mask)), 
                                                 getattr(self, "alpha_mask_{}_{}".format(self.current_feature, self.sel_mask))) ### Mask for element which applies ReLU

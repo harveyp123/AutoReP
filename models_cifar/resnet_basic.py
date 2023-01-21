@@ -62,6 +62,7 @@ class BasicBlock(nn.Module):
 
         out = self.conv1(x)
         out = self.bn1(out)
+        out.var_map = 1
         out = self.relu(out)
 
         out = self.conv2(out)
@@ -71,6 +72,7 @@ class BasicBlock(nn.Module):
             identity = self.downsample(x)
 
         out += identity
+        out.var_map = 2
         out = self.relu(out)
 
         return out
@@ -110,13 +112,13 @@ class Bottleneck(nn.Module):
 
         out = self.conv1(x)
         out = self.bn1(out)
+        out.var_map = 1
         out = self.relu(out)
-        # out = self.relu(out)
 
         out = self.conv2(out)
         out = self.bn2(out)
+        out.var_map = 1
         out = self.relu(out)
-        # out = self.relu(out)
 
         out = self.conv3(out)
         out = self.bn3(out)
@@ -125,6 +127,7 @@ class Bottleneck(nn.Module):
             identity = self.downsample(x)
 
         out += identity
+        out.var_map = 2
         out = self.relu(out)
 
         return out
@@ -226,6 +229,7 @@ class ResNet_Gated(nn.Module):
     def forward(self, x):
         x = self.conv1(x)
         x = self.bn1(x)
+        x.var_map = 1
         x = self.relu(x)
         x = self.maxpool(x)
 

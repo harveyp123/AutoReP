@@ -42,7 +42,8 @@ class TrainCifarConfig(BaseConfig):
         parser.add_argument('--dataset',  default='cifar10', help='cifar10 / cifar100')
         parser.add_argument('--data_path', default='./data/', help='CIFAR10 / MNIST / FashionMNIST')
         parser.add_argument('--act_type', type=str, default='nn.ReLU', choices = ['nn.ReLU', 'ReLU_masked', 'ReLU_masked_spgrad', 
-        'ReLU_masked_poly', 'ReLU_masked_relay', 'ReLU_masked_spgrad_relay', 'ReLU_masked_poly_relay'],
+        'ReLU_masked_poly', 'ReLU_masked_relay', 'ReLU_masked_spgrad_relay', 'ReLU_masked_poly_relay', 
+        'ReLU_masked_autopoly_relay', 'ReLU_masked_autopoly'],
              help='Which non-lienar function to be used in the training')
         parser.add_argument('--batch_size', type=int, default=128, help='batch size')
         
@@ -99,7 +100,8 @@ class TrainCifarConfig(BaseConfig):
         if self.evaluate:
             str_first = self.optim + '_' + ("baseline_" if self.act_type == 'nn.ReLU' else "")
             str_first +=  "mask_dropout_{}".format(self.mask_dropout) if self.mask_dropout > 0 else ""
-            str_folder = "evaluate_cifar" + ("_poly" if self.act_type == 'ReLU_masked_poly' else "") + ("_distil" if self.distil else "")
+            str_folder = "evaluate_cifar" + ("_poly" if "_poly" in self.act_type else "") + ("_autopoly" if "_autopoly" in self.act_type else "")\
+             + ("_distil" if self.distil else "")
             str_folder += "_relay" if "relay" in self.act_type else ""
             relay_append = "_relay_{}".format(self.threshold) if "relay" in self.act_type else ""
             if self.mask_epochs == 0:
@@ -109,7 +111,8 @@ class TrainCifarConfig(BaseConfig):
         else:
             str_first = self.optim + '_' + ("baseline_" if self.act_type == 'nn.ReLU' else "")
             str_first +=  "mask_dropout_{}".format(self.mask_dropout) if self.mask_dropout > 0 else ""
-            str_folder = "train_cifar" + ("_poly" if self.act_type == 'ReLU_masked_poly' else "") + ("_distil" if self.distil else "")
+            str_folder = "train_cifar" + ("_poly" if "_poly" in self.act_type else "") + ("_autopoly" if "_autopoly" in self.act_type else "")\
+             + ("_distil" if self.distil else "")
             str_folder += "_relay" if "relay" in self.act_type else ""
             relay_append = "_relay_{}".format(self.threshold) if "relay" in self.act_type else ""
             if self.mask_epochs == 0:

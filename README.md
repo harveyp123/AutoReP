@@ -170,7 +170,7 @@ Here are the steps to explore the threshold impact on training result:
 "```train_cifar_relay/resnet18__cifar10_relay_0.003/cosine_mask_dropout_0.01sp0.9lr0.01ep100_baseline```" (ReLU counts: ```18,830```, ACC ```89.70%```) <br /> 
 "```train_cifar_relay/resnet18__cifar10_relay_0.003/cosine_mask_dropout_0.01sp0.95lr0.01ep100_baseline```" (ReLU counts: ```9416```, ACC ```88.70%```) <br /> 
 
-    - With around ```9416``` ReLU counts, the [Sec. 2](#2-run-purely-relu-pruning-optional) gives ``` 88.29%``` accuracy, where the Hysteresis Loop like gated mask forward function provides ```88.43``` accuracy without finetune and ``` 88.70%``` accuracy with finetune, which is a significant improvement. 
+    - With around ```9416``` ReLU counts, the [Sec. 2](#2-run-purely-relu-pruning-optional) gives ``` 88.29%``` accuracy, where the Hysteresis Loop like gated mask forward function provides ```88.43%``` accuracy without finetune and ``` 88.70%``` accuracy with finetune, which is a significant improvement. 
 
 ## 4. Run ReLU replacement (pruning) with (ax^2 + bx) function:
 
@@ -184,3 +184,22 @@ Here are the steps to run the ReLU replacement (pruning) with (ax^2 + bx) functi
 "```train_cifar_poly/ResNet18__cifar10/cosine_sp0.91wm_lr0.01mep50_baseline```" (Best: ReLU counts: ```49,993```, ACC ``` 94.44%```) <br /> 
 "```train_cifar_poly/ResNet18__cifar10/cosine_sp0.946wm_lr0.01mep50_baseline```" (Best: ReLU counts: ```29,867```, ACC ``` 94.83%```) <br />
 "```train_cifar_poly/ResNet18__cifar10/cosine_sp0.964wm_lr0.01mep50_baseline```" (Best: ReLU counts: ```19,779```, ACC ``` 95.03%```) <br /> 
+
+## 5. Run ReLU replacement (pruning) with (ax^2 + bx + c) function, combined with Hysteresis Loop:
+- Step 1: We firstly need to determine the a, b, c parameter during the replacement. Detailed steps can be found in ```debug.ipynb```. Here is a brief summary: 
+    - During the replacement, we expect to make the ```f(x) = ReLU(x)``` and ```g(x) = ax^2 + bx + c``` similar in the range of ```x```. 
+    - There is always a batch normalization function before the non-linear function, so the ```x``` distribution is ```x ~ N(0, 1)```. In resnet, the case might be two batch normed output add together (residual connection), and are then fed into the non-linear function. Two normal distribution added together has a distribution as ```x ~ N(0, 2)```. The distribution type will determine the ```a, b, c``` parameter of non-linear function ```g(x) = ax^2 + bx + c```. 
+    - In the ```debug.ipynb```, we made ```a, b, c``` to be trainable, and use loss function as ```loss = (f(x) - g(x))^2```, then fed ```x ~ N(0, 1)``` input or ```x ~ N(0, 2)``` input to find the ```a, b, c``` parameter. 
+    - The conclusion is that: ```x ~ N(0, 1)``` --> ```a = 0.2, b = 0.5, c = 0.2```,  ```x ~ N(0, 2)``` --> ```a = 0.1414, b = 0.5, c = 0.2828```. 
+    - We can use probability density function, and expectation to find the exact expression of ```x ~ N(μ, δ)``` --> ```a, b, c = ?```. 
+- Step 2: Run code: 
+    ```bash
+    bash scripts/scripts_resnet18_autopoly.sh
+    ```
+    - We only assume that the resnet non-linear input has 2 different distribution: ```x ~ N(0, 1)``` and ```x ~ N(0, 2)```, and we only set two possible ```a, b, c``` parameter. 
+    - We need to slightly modify the original model structure code, for every ```self.relu(x)```, we need to give a extra attribute to the input tensor x by ```x.var_map = 1``` or ```x.var_map = 2```, the ```var_map``` indicates the variance of the input. Without the residual connection, variance is 1, with residual connection, variance is 2. The modification is done in files: ```models_cifar/resnet_basic.py``` and ```models_cifar/resnet.py```. 
+    - The code utilized a Hysteresis Loop for gated mask forward with ```threshold = 0.003```. 
+    - The checkpoint and log file location folder: <br />
+"```train_cifar_autopoly_relay/resnet18__cifar10_relay_0.003/cosine_sp0.5wm_lr0.01mep50_baseline```" (Best: ReLU counts: ```94,239```, ACC ``` 93.17%```) <br /> 
+"```train_cifar_autopoly_relay/resnet18__cifar10_relay_0.003/cosine_sp0.9wm_lr0.01mep50_baseline```" (Best: ReLU counts: ```18,814```, ACC ``` 93.06%```) <br />
+"```train_cifar_autopoly_relay/resnet18__cifar10_relay_0.003/cosine_sp0.95wm_lr0.01mep50_baseline```" (Best: ReLU counts: ```9,416```, ACC ``` 93.24%```) <br /> 

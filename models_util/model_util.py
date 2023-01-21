@@ -234,6 +234,12 @@ class model_ReLU_RP(nn.Module):
         logger.info("# Format: [Total original ReLU count, Pruned count, Pruned percentage]")
         logger.info(self.global_sparsity)
         logger.info("########## End ###########")
+        if 'autopoly' in self.config.act_type:
+            for model_stat in self._ReLU_sp_models:
+                for current_feature in range(model_stat.num_feature):
+                    messege = "Layer {} activation function type: {}".format(current_feature, 
+                                eval("model_stat.var_map_{}".format(current_feature)))
+                    logger.info(messege)
         # restore formats
         for handler, formatter in zip(logger.handlers, org_formatters):
             handler.setFormatter(formatter)

@@ -246,3 +246,88 @@ class ReLU_masked_poly_relay(nn.Module):
             return out_final
         else:
             return out
+
+### ReLU with run time initialization method
+# mask1: bitmap, 1 means has ReLU, 0 means direct pass.
+# mask2: bitmap, 1 means direct pass, 0 means have ReLU
+# a*mask2: passed element
+# a*mask1: element need to be ReLU
+# ReLU(a*mask1) + a*mask2
+class ReLU_masked_autopoly_relay(nn.Module):
+    def __init__(self, config, Num_mask = 1, dropRate=0):
+        super().__init__()
+        self.Num_mask = Num_mask
+        self.num_feature = 0
+        self.current_feature = 0
+        self.sel_mask = 0
+        self.init = 1
+        self.threshold = config.threshold
+        self.act = partial(F.relu, inplace = True)
+        self.act_var1 = partial(x2act_auto, scale_x2 = 0.2, scale_x = 0.5, bias = 0.2)
+        self.act_var2 = partial(x2act_auto, scale_x2 = 0.1414, scale_x = 0.5, bias = 0.2828)
+        self.dropout = nn.Dropout2d(p=dropRate, inplace=True)
+        self.p = dropRate
+    @torch.no_grad()
+    def init_w_aux(self, size, var_map):
+        for i in range(self.Num_mask):
+            setattr(self, "alpha_aux_{}_{}".format(self.num_feature, i), nn.Parameter(torch.Tensor(*size)))
+            setattr(self, "alpha_mask_{}_{}".format(self.num_feature, i), nn.Parameter(torch.Tensor(*size)))
+            nn.init.uniform_(getattr(self, "alpha_aux_{}_{}".format(self.num_feature, i)), a = 0, b = 1) # weight init for aux parameter, can be truncated normal
+            nn.init.constant_(getattr(self, "alpha_mask_{}_{}".format(self.num_feature, i)), 1)
+            setattr(eval('self.alpha_mask_{}_{}'.format(self.num_feature, i)), 'requires_grad', False)
+        setattr(self, "var_map_{}".format(self.num_feature), var_map)
+    @torch.no_grad()
+    def update_mask(self):
+        for feature_i in range(self.num_feature):
+            mask_old = getattr(self, "alpha_mask_{}_{}".format(feature_i, self.sel_mask)).data
+            in_tensor = getattr(self, "alpha_aux_{}_{}".format(feature_i, self.sel_mask)).data
+            mask_new = mask_old * (in_tensor > (-1) * self.threshold).float() + (1 - mask_old) * (in_tensor > self.threshold).float()
+            getattr(self, "alpha_mask_{}_{}".format(feature_i, self.sel_mask)).data.copy_(mask_new)
+
+    def mask_density_forward(self):
+        l0_reg = 0
+        sparse_list = []
+        sparse_pert_list = []
+        total_mask = 0
+        for feature_i in range(self.num_feature):
+            neuron_mask = STEFunction_relay.apply(getattr(self, "alpha_aux_{}_{}".format(feature_i, self.sel_mask)), 
+                                            getattr(self, "alpha_mask_{}_{}".format(feature_i, self.sel_mask)))
+            l0_reg += torch.sum(neuron_mask)
+            sparse_list.append(torch.sum(neuron_mask).item())
+            sparse_pert_list.append(sparse_list[-1]/neuron_mask.numel())
+            total_mask += neuron_mask.numel()
+        global_density = l0_reg/total_mask 
+        return global_density, sparse_list, sparse_pert_list
+
+    def forward(self, x):
+        ### Initialize the parameter at the beginning
+        if self.init:
+            x_size = list(x.size())[1:] ### Ignore batch size dimension
+            var_map = x.var_map
+            self.init_w_aux(x_size, var_map)
+            neuron_relu_mask = STEFunction_relay.apply(getattr(self, "alpha_aux_{}_{}".format(self.num_feature, self.sel_mask)), 
+                                                getattr(self, "alpha_mask_{}_{}".format(self.num_feature, self.sel_mask))) ### Mask for element which applies ReLU
+            act_choice = eval(f"self.var_map_{self.num_feature}")
+            out_act_rep = eval("self.act_var{}".format(act_choice))
+            self.num_feature += 1
+        ### Conduct recurrently inference during normal inference and training
+        else:
+            if self.current_feature == 0:
+                self.update_mask()
+            # print("Current used: ", getattr(self, "alpha_aux_{}_{}".format(self.current_feature, self.sel_mask)))
+            neuron_relu_mask = STEFunction_relay.apply(getattr(self, "alpha_aux_{}_{}".format(self.current_feature, self.sel_mask)), 
+                                                getattr(self, "alpha_mask_{}_{}".format(self.current_feature, self.sel_mask))) ### Mask for element which applies ReLU
+            act_choice = eval(f"self.var_map_{self.current_feature}")
+            out_act_rep = eval("self.act_var{}".format(act_choice))
+            self.current_feature = (self.current_feature + 1) % self.num_feature
+        neuron_pass_mask = 1 - neuron_relu_mask  ### Mask for element which ignore ReLU
+        out = torch.mul(self.act(x), neuron_relu_mask) + torch.mul(out_act_rep(x), neuron_pass_mask)
+        out = self.dropout(out)
+        
+        if (self.training and self.p > 0):
+            out_relu = F.relu(x)
+            sel = float(random.uniform(0, 1) < self.p)
+            out_final = sel * out_relu + (1 - sel) * out
+            return out_final
+        else:
+            return out

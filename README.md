@@ -205,7 +205,7 @@ Here are the steps to run the ReLU replacement (pruning) with (ax^2 + bx) functi
 "```train_cifar_autopoly2_relay/resnet18__cifar10_relay_0.003/cosine_sp0.95wm_lr0.01mep50_baseline```" (Best: ReLU counts: ```9,416```, ACC ``` 93.24%```) <br /> 
 
 
-## 6. Run ReLU replacement (pruning) with (ax^2 + bx + c) function, combined with Hysteresis Loop:
+## 6. Run ReLU replacement (pruning) with (ax + b) function, combined with Hysteresis Loop:
 - Step 1: Similar to Step 1, summary: 
     - During the replacement, we expect to make the ```f(x) = ReLU(x)``` and ```g(x) = ax + b``` similar in the range of ```x```. 
     - There is always a batch normalization function before the non-linear function, so the ```x``` distribution is ```x ~ N(0, 1)```. In resnet, the case might be two batch normed output add together (residual connection), and are then fed into the non-linear function. Two normal distribution added together has a distribution as ```x ~ N(0, 2)```. The distribution type will determine the ```a, b``` parameter of non-linear function ```g(x) = ax + b```. 

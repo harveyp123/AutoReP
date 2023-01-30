@@ -23,6 +23,18 @@ class STEFunction(torch.autograd.Function):
         input, = ctx.saved_tensors
         return torch.mul(F.softplus(input), grad_output)
 
+# class STEFunction(torch.autograd.Function):
+#     """ define straight through estimator with overrided gradient (gate) """
+#     @staticmethod
+#     def forward(ctx, input):
+#         ctx.save_for_backward(input)
+#         return (input > 0).float()
+
+#     @staticmethod
+#     def backward(ctx, grad_output):
+#         input, = ctx.saved_tensors
+#         return torch.mul((input > 0).float(), grad_output)
+
 
 
 def x2act(x_input, scale_x2 = 0.1, scale_x = 0.5):

@@ -32,6 +32,13 @@ def x2act(x_input, scale_x2 = 0.1, scale_x = 0.5):
     '''
     return scale_x2 * torch.mul(x_input, x_input) + scale_x * x_input
 
+def xact_auto(x_input, scale_x = 0.5, bias = 0.4):
+    '''
+    Applies the x^2 Unit (x2act) function element-wise:
+        x2act(x) = scale*w0*x^2+w1*x+c
+    '''
+    return scale_x * x_input + bias
+
 def x2act_auto(x_input, scale_x2 = 0.2, scale_x = 0.5, bias = 0.2):
     '''
     Applies the x^2 Unit (x2act) function element-wise:
@@ -283,9 +290,11 @@ class ReLU_masked_autopoly(nn.Module):
         self.sel_mask = 0
         self.init = 1
         self.act = partial(F.relu, inplace = True)
-  
-        self.act_var1 = partial(x2act_auto, scale_x2 = 0.2, scale_x = 0.5, bias = 0.2)
-        self.act_var2 = partial(x2act_auto, scale_x2 = 0.1414, scale_x = 0.5, bias = 0.2828)
+        self.degree = config.degree
+        self.act_d2_var1 = partial(x2act_auto, scale_x2 = 0.2, scale_x = 0.5, bias = 0.2)
+        self.act_d2_var2 = partial(x2act_auto, scale_x2 = 0.1414, scale_x = 0.5, bias = 0.2828)
+        self.act_d1_var1 = partial(xact_auto, scale_x = 0.5, bias = 0.4)
+        self.act_d1_var2 = partial(xact_auto, scale_x = 0.5, bias = 0.56)
         self.dropout = nn.Dropout2d(p=dropRate, inplace=True)
         self.p = dropRate
     def init_w_aux(self, size, var_map):
@@ -314,14 +323,14 @@ class ReLU_masked_autopoly(nn.Module):
             self.init_w_aux(x_size, var_map)
             neuron_relu_mask = STEFunction.apply(getattr(self, "alpha_aux_{}_{}".format(self.num_feature, self.sel_mask))) ### Mask for element which applies ReLU
             act_choice = eval(f"self.var_map_{self.num_feature}")
-            out_act_rep = eval("self.act_var{}".format(act_choice))
+            out_act_rep = eval("self.act_d{}_var{}".format(self.degree, act_choice))
             self.num_feature += 1
         ### Conduct recurrently inference during normal inference and training
         else:
             # print("Current used: ", getattr(self, "alpha_aux_{}_{}".format(self.current_feature, self.sel_mask)))
             neuron_relu_mask = STEFunction.apply(getattr(self, "alpha_aux_{}_{}".format(self.current_feature, self.sel_mask))) ### Mask for element which applies ReLU
             act_choice = eval(f"self.var_map_{self.current_feature}")
-            out_act_rep = eval("self.act_var{}".format(act_choice))
+            out_act_rep = eval("self.act_d{}_var{}".format(self.degree, act_choice))
             self.current_feature = (self.current_feature + 1) % self.num_feature
         neuron_pass_mask = 1 - neuron_relu_mask  ### Mask for element which ignore ReLU
         out = torch.mul(self.act(x), neuron_relu_mask) + torch.mul(out_act_rep(x), neuron_pass_mask)

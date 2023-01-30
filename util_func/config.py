@@ -45,6 +45,7 @@ class TrainCifarConfig(BaseConfig):
         'ReLU_masked_poly', 'ReLU_masked_relay', 'ReLU_masked_spgrad_relay', 'ReLU_masked_poly_relay', 
         'ReLU_masked_autopoly_relay', 'ReLU_masked_autopoly'],
              help='Which non-lienar function to be used in the training')
+        parser.add_argument('--degree', type=int, default=2, help='The degree of approximation for autopoly')
         parser.add_argument('--batch_size', type=int, default=128, help='batch size')
         
         parser.add_argument('--w_mask_lr', type=float, default=0.02, help='lr for weights of trainable mask')
@@ -59,6 +60,7 @@ class TrainCifarConfig(BaseConfig):
         parser.add_argument('--sparsity', type=float, default=0.0, help='Sparsity ReLU mask')
         parser.add_argument('--threshold', type=float, default=0.001, help='Threshold of Relay function')
         parser.add_argument('--lamda', type=float, default=1e1, help='penalty iterm for ReLU mask')
+        # parser.add_argument('--lamda', type=float, default=2e1, help='penalty iterm for ReLU mask')
         parser.add_argument('--scale_x2', type=float, default=0.1, help='Scaling factor for x2 term')
         parser.add_argument('--scale_x', type=float, default=0.5, help='Scaling factor for x term')
         parser.add_argument('--alpha_weight_decay', type=float, default=1e-3, help='weight decay for alpha')
@@ -100,7 +102,7 @@ class TrainCifarConfig(BaseConfig):
         if self.evaluate:
             str_first = self.optim + '_' + ("baseline_" if self.act_type == 'nn.ReLU' else "")
             str_first +=  "mask_dropout_{}".format(self.mask_dropout) if self.mask_dropout > 0 else ""
-            str_folder = "evaluate_cifar" + ("_poly" if "_poly" in self.act_type else "") + ("_autopoly" if "_autopoly" in self.act_type else "")\
+            str_folder = "evaluate_cifar" + ("_poly" if "_poly" in self.act_type else "") + (("_autopoly" + str(self.degree)) if "_autopoly" in self.act_type else "")\
              + ("_distil" if self.distil else "")
             str_folder += "_relay" if "relay" in self.act_type else ""
             relay_append = "_relay_{}".format(self.threshold) if "relay" in self.act_type else ""
@@ -111,7 +113,7 @@ class TrainCifarConfig(BaseConfig):
         else:
             str_first = self.optim + '_' + ("baseline_" if self.act_type == 'nn.ReLU' else "")
             str_first +=  "mask_dropout_{}".format(self.mask_dropout) if self.mask_dropout > 0 else ""
-            str_folder = "train_cifar" + ("_poly" if "_poly" in self.act_type else "") + ("_autopoly" if "_autopoly" in self.act_type else "")\
+            str_folder = "train_cifar" + ("_poly" if "_poly" in self.act_type else "") + (("_autopoly" + str(self.degree)) if "_autopoly" in self.act_type else "")\
              + ("_distil" if self.distil else "")
             str_folder += "_relay" if "relay" in self.act_type else ""
             relay_append = "_relay_{}".format(self.threshold) if "relay" in self.act_type else ""

@@ -227,11 +227,11 @@ class model_ReLU_RP(nn.Module):
         # Logging alpha data: 
         logger.info("####### ReLU Sparsity #######")
         logger.info("# Layer wise neuron ReLU sparsity for the model")
-        logger.info("# Format: [layer name, Total original ReLU count, Pruned count, Pruned percentage]")
+        logger.info("# Format: [layer name, Total original ReLU count, remained count, remained percentage]")
         for sparse_list in self.sparse_list:
             logger.info(sparse_list)
         logger.info("# Global ReLU neuron sparsity for the model")
-        logger.info("# Format: [Total original ReLU count, Pruned count, Pruned percentage]")
+        logger.info("# Format: [Total original ReLU count, remained count, remained percentage]")
         logger.info(self.global_sparsity)
         logger.info("########## End ###########")
         if 'autopoly' in self.config.act_type:

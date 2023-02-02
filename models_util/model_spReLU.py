@@ -44,12 +44,19 @@ def x2act(x_input, scale_x2 = 0.1, scale_x = 0.5):
     '''
     return scale_x2 * torch.mul(x_input, x_input) + scale_x * x_input
 
+# def xact_auto(x_input, scale_x = 0.5, bias = 0.4):
+#     '''
+#     Applies the x^2 Unit (x2act) function element-wise:
+#         x2act(x) = scale*w0*x^2+w1*x+c
+#     '''
+#     return scale_x * x_input + bias
+
 def xact_auto(x_input, scale_x = 0.5, bias = 0.4):
     '''
     Applies the x^2 Unit (x2act) function element-wise:
         x2act(x) = scale*w0*x^2+w1*x+c
     '''
-    return scale_x * x_input + bias
+    return x_input
 
 def x2act_auto(x_input, scale_x2 = 0.2, scale_x = 0.5, bias = 0.2):
     '''
@@ -167,7 +174,8 @@ class ReLU_masked(nn.Module):
             neuron_relu_mask = STEFunction.apply(getattr(self, "alpha_aux_{}_{}".format(self.current_feature, self.sel_mask))) ### Mask for element which applies ReLU
             self.current_feature = (self.current_feature + 1) % self.num_feature
         neuron_pass_mask = 1 - neuron_relu_mask  ### Mask for element which ignore ReLU
-        out = self.act(torch.mul(x, neuron_relu_mask)) + torch.mul(x, neuron_pass_mask)
+        # out = self.act(torch.mul(x, neuron_relu_mask)) + torch.mul(x, neuron_pass_mask)
+        out = torch.mul(self.act(x), neuron_relu_mask) + torch.mul(self.act(x), neuron_pass_mask)
         out = self.dropout(out)
         return out
 
@@ -218,7 +226,8 @@ class ReLU_masked_spgrad(nn.Module):
             neuron_relu_mask = STEFunction.apply(getattr(self, "alpha_aux_{}_{}".format(self.current_feature, self.sel_mask))) ### Mask for element which applies ReLU
             self.current_feature = (self.current_feature + 1) % self.num_feature
         neuron_pass_mask = 1 - neuron_relu_mask  ### Mask for element which ignore ReLU
-        out = self.act(torch.mul(x, neuron_relu_mask)) + ReLU_Pruned.apply(torch.mul(x, neuron_pass_mask))
+        # out = self.act(torch.mul(x, neuron_relu_mask)) + ReLU_Pruned.apply(torch.mul(x, neuron_pass_mask))
+        out = torch.mul(self.act(x), neuron_relu_mask) + torch.mul(ReLU_Pruned.apply(x), neuron_pass_mask)
         out = self.dropout(out)
         out_relu = F.relu(x)
         if (self.training and self.p > 0):

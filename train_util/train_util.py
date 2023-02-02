@@ -42,7 +42,8 @@ def train_mask_distil(train_loader, model, w_optim, alpha_optim, lambda0, teache
         loss = ce_loss + lambda0*(F.relu(global_density - (1-config.sparsity)))
         loss.backward()
         alpha_optim.step()
-
+        # if 'relay' in config.act_type:
+        #     model._ReLU_sp_models[0].update_mask()
 
         w_optim.zero_grad()
         output = model(input)

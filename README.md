@@ -49,7 +49,8 @@ The experiment is extremely hard to tune, but here are few versions that I tuned
     "```--alpha_lr```" specifies the mask weights' learning rate during mask training process. Under current value ```2e-4```, the mask will converge in 25-35 epochs. <br />
     "```--lamda```" is the loss penalty for ReLU replacement ratio: ```loss = ce_loss + lamda * ReLU_density```. The higher the penalty, the faster the mask will converge but it might be more unstable. The current value ```1e1``` gives a good trade-off between convergence rate and stability. 
     - The checkpoint and checkpoint with best acc will be saved as long as the mask sparsity is converged to the given value. 
-We ran 4 combinations in the bash scripts: <br />
+We ran 4 combinations in the bash scripts : <br />
+<span style="color:red;">(Results are not up to date and need re-run, as we changed the forward function)</span> <br />
     "```--sparsity 0.5 --mask_dropout 0.01```" (ACC ``` 92.26%```) <br />
     "```--sparsity 0.9 --mask_dropout 0.01```" (ACC ``` 88.89%```) <br />
     "```--sparsity 0.95 --mask_dropout 0.01```" (ACC ``` 87.59%```) <br />
@@ -59,6 +60,7 @@ We ran 4 combinations in the bash scripts: <br />
     
 
     - The checkpoint and log file location folder: <br />
+<span style="color:red;">(Results are not up to date and need re-run, as we changed the forward function)</span> <br />
 "```train_cifar/resnet18__cifar10/cosine_mask_dropout_0.01sp0.5wm_lr0.02mep100_baseline```" (ACC ``` 92.26%```) <br />
 "```train_cifar/resnet18__cifar10/cosine_mask_dropout_0.01sp0.9wm_lr0.02mep100_baseline```" (ACC ``` 88.89%```)<br />
 "```train_cifar/resnet18__cifar10/cosine_mask_dropout_0.01sp0.95wm_lr0.02mep100_baseline```" (ACC ``` 87.59%```)<br />
@@ -87,6 +89,7 @@ We ran 4 combinations in the bash scripts: <br />
     ```
     - We select different sparsity to validate the method: 0.46, 0.64, 0.82, 0.91, 0.946, 0.964. 
     - The checkpoint and log file location folder: <br />
+<span style="color:red;">(Results are not up to date and need re-run, as we changed the forward function)</span> <br />
 "```train_cifar/ResNet18__cifar10/cosine_mask_dropout_0.01sp0.46lr0.01ep100_baseline```" (ReLU counts: ```266,622```, ACC ``` 94.38%```) <br /> 
 "```train_cifar/ResNet18__cifar10/cosine_mask_dropout_0.01sp0.64lr0.01ep100_baseline```" (ReLU counts: ```196,828```, ACC ``` 93.94%```) <br />
 "```train_cifar/ResNet18__cifar10/cosine_mask_dropout_0.01sp0.82lr0.01ep100_baseline```" (ReLU counts: ```100,050```, ACC ``` 91.57%```) <br /> 
@@ -125,17 +128,21 @@ Here are the steps to explore the threshold impact on training result:
     bash scripts/scripts_relu_prune_relay_0.003.sh
     ```
     - We use ```--act_type ReLU_masked_spgrad_relay``` to setup the ReLU with gated mask and hysteresis loop for updating the mask. We use ```--threshold 0.001``` to set up the threshold, other thing have similar setting as [Sec. 2](#2-run-purely-relu-pruning-optional). 
-    - The checkpoint and log file location folder for **threshold = 0.001**:
+    - The checkpoint and log file location folder for **threshold = 0.001**: <br />
+<span style="color:red;">(Results are not up to date and need re-run, as we changed the forward function)</span> <br />
 "```train_cifar_relay/resnet18__cifar10_relay_0.001/cosine_mask_dropout_0.01sp0.5wm_lr0.02mep100_baseline```" (ReLU counts: ```93,827```, ACC ``` 92.33%```) <br /> 
 "```train_cifar_relay/resnet18__cifar10_relay_0.001/cosine_mask_dropout_0.01sp0.9wm_lr0.02mep100_baseline```" (ReLU counts: ```18,833```, ACC ``` 89.19%```) <br /> 
 "```train_cifar_relay/resnet18__cifar10_relay_0.001/cosine_sp0.5wm_lr0.02mep100_baseline```" (ReLU counts: ```91,577```, ACC ``` 92.20%```) <br /> 
 "```train_cifar_relay/resnet18__cifar10_relay_0.001/cosine_sp0.9wm_lr0.02mep100_baseline```" (ReLU counts: ```18,820```, ACC ``` 89.19%```) <br /> 
     - The checkpoint and log file location folder for **threshold = 0.002**:
-"```train_cifar_relay/resnet18__cifar10_relay_0.002/cosine_mask_dropout_0.01sp0.5wm_lr0.02mep100_baseline```" (ReLU counts: ```91,752```, ACC ```92.52%```) <br /> 
+"```train_cifar_relay/resnet18__cifar10_relay_0.002/ <br />
+<span style="color:red;">(Results are not up to date and need re-run, as we changed the forward function)</span> <br />
+cosine_mask_dropout_0.01sp0.5wm_lr0.02mep100_baseline```" (ReLU counts: ```91,752```, ACC ```92.52%```) <br /> 
 "```train_cifar_relay/resnet18__cifar10_relay_0.002/cosine_mask_dropout_0.01sp0.9wm_lr0.02mep100_baseline```" (ReLU counts: ```18,831```, ACC ```89.48%```) <br /> 
 "```train_cifar_relay/resnet18__cifar10_relay_0.002/cosine_sp0.5wm_lr0.02mep100_baseline```" (ReLU counts: ```88,400```, ACC ```92.20%```) <br /> 
 "```train_cifar_relay/resnet18__cifar10_relay_0.002/cosine_sp0.9wm_lr0.02mep100_baseline```" (ReLU counts: ```18,820```, ACC ```89.30%```) <br /> 
-    - The checkpoint and log file location folder for **threshold = 0.003**:
+    - The checkpoint and log file location folder for **threshold = 0.003**:  <br />
+<span style="color:red;">(Results are not up to date and need re-run, as we changed the forward function)</span> <br />
 "```train_cifar_relay/resnet18__cifar10_relay_0.003/cosine_mask_dropout_0.01sp0.5wm_lr0.02mep100_baseline```" (ReLU counts: ```94,157```, ACC ```92.63%```) <br /> 
 "```train_cifar_relay/resnet18__cifar10_relay_0.003/cosine_mask_dropout_0.01sp0.9wm_lr0.02mep100_baseline```" (ReLU counts: ```18,830```, ACC ```89.42%```) <br /> 
 "```train_cifar_relay/resnet18__cifar10_relay_0.003/cosine_mask_dropout_0.01sp0.95wm_lr0.02mep100_baseline```" (ReLU counts: ```9,416```, ACC ```88.10%```) <br /> 
@@ -160,12 +167,18 @@ Here are the steps to explore the threshold impact on training result:
     ```
     - We still need to specify ```--act_type ReLU_masked_spgrad_relay threshold 0.001``` in the scripts. 
     - The checkpoint and log file location folder for **threshold = 0.001**:
+ <br />
+<span style="color:red;">(Results are not up to date and need re-run, as we changed the forward function)</span> <br />
 "```train_cifar_relay/resnet18__cifar10_relay_0.001/cosine_mask_dropout_0.01sp0.5lr0.01ep100_baseline```" (ReLU counts: ```93,827```, ACC ```92.66%```) <br /> 
 "```train_cifar_relay/resnet18__cifar10_relay_0.001/cosine_mask_dropout_0.01sp0.9lr0.01ep100_baseline```" (ReLU counts: ```18,833```, ACC ```89.39%```) <br /> 
     - The checkpoint and log file location folder for **threshold = 0.002**:
+ <br />
+<span style="color:red;">(Results are not up to date and need re-run, as we changed the forward function)</span> <br />
 "```train_cifar_relay/resnet18__cifar10_relay_0.002/cosine_mask_dropout_0.01sp0.5lr0.01ep100_baseline```" (ReLU counts: ```91,752```, ACC ```92.63%```) <br /> 
 "```train_cifar_relay/resnet18__cifar10_relay_0.002/cosine_mask_dropout_0.01sp0.9lr0.01ep100_baseline```" (ReLU counts: ```18,831```, ACC ```89.71%```) <br /> 
     - The checkpoint and log file location folder for **threshold = 0.003**:
+ <br />
+<span style="color:red;">(Results are not up to date and need re-run, as we changed the forward function)</span> <br />
 "```train_cifar_relay/resnet18__cifar10_relay_0.003/cosine_mask_dropout_0.01sp0.5lr0.01ep100_baseline```" (ReLU counts: ```94,157```, ACC ```92.70%```) <br /> 
 "```train_cifar_relay/resnet18__cifar10_relay_0.003/cosine_mask_dropout_0.01sp0.9lr0.01ep100_baseline```" (ReLU counts: ```18,830```, ACC ```89.70%```) <br /> 
 "```train_cifar_relay/resnet18__cifar10_relay_0.003/cosine_mask_dropout_0.01sp0.95lr0.01ep100_baseline```" (ReLU counts: ```9416```, ACC ```88.70%```) <br /> 
@@ -187,6 +200,8 @@ Here are the steps to run the ReLU replacement (pruning) with (ax^2 + bx) functi
 
 ## 5. Run ReLU replacement (pruning) with (ax^2 + bx + c) function, combined with Hysteresis Loop:
 - Step 1: We firstly need to determine the a, b, c parameter during the replacement. Detailed steps can be found in ```debug.ipynb```. Here is a brief summary: 
+ <br />
+<span style="color:red;">(The polynomial function need to be changed according to the mean and variance of batch normalization. The following steps is a initial test and may not reflect the true distribution)</span> <br />
     - During the replacement, we expect to make the ```f(x) = ReLU(x)``` and ```g(x) = ax^2 + bx + c``` similar in the range of ```x```. 
     - There is always a batch normalization function before the non-linear function, so the ```x``` distribution is ```x ~ N(0, 1)```. In resnet, the case might be two batch normed output add together (residual connection), and are then fed into the non-linear function. Two normal distribution added together has a distribution as ```x ~ N(0, 2)```. The distribution type will determine the ```a, b, c``` parameter of non-linear function ```g(x) = ax^2 + bx + c```. 
     - In the ```debug.ipynb```, we made ```a, b, c``` to be trainable, and use loss function as ```loss = (f(x) - g(x))^2```, then fed ```x ~ N(0, 1)``` input or ```x ~ N(0, 2)``` input to find the ```a, b, c``` parameter. 
@@ -206,18 +221,14 @@ Here are the steps to run the ReLU replacement (pruning) with (ax^2 + bx) functi
 
 
 ## 6. Run ReLU replacement (pruning) with (ax + b) function, combined with Hysteresis Loop:
-- Step 1: Similar to Step 1, summary: 
-    - During the replacement, we expect to make the ```f(x) = ReLU(x)``` and ```g(x) = ax + b``` similar in the range of ```x```. 
-    - There is always a batch normalization function before the non-linear function, so the ```x``` distribution is ```x ~ N(0, 1)```. In resnet, the case might be two batch normed output add together (residual connection), and are then fed into the non-linear function. Two normal distribution added together has a distribution as ```x ~ N(0, 2)```. The distribution type will determine the ```a, b``` parameter of non-linear function ```g(x) = ax + b```. 
-    - As a result, for ```x ~ N(0, 1)```, we use ```a = 0.5, b = 0.4```, for ```x ~ N(0, 2)```, we use ```a = 0.5, b = 0.56```. 
+- Step 1: 
+    - For this experiment, we only need to run for ```f(x) = x``` activation function, the result is pretty good. 
 - Step 2: Run code: 
     ```bash
     bash scripts/scripts_resnet18_autopoly1.sh
     ```
-    - We only assume that the resnet non-linear input has 2 different distribution: ```x ~ N(0, 1)``` and ```x ~ N(0, 2)```, and we only set two possible ```a, b``` parameter. 
-    - We need to slightly modify the original model structure code, for every ```self.relu(x)```, we need to give a extra attribute to the input tensor x by ```x.var_map = 1``` or ```x.var_map = 2```, the ```var_map``` indicates the variance of the input. Without the residual connection, variance is 1, with residual connection, variance is 2. The modification is done in files: ```models_cifar/resnet_basic.py``` and ```models_cifar/resnet.py```. 
     - The code utilized a Hysteresis Loop for gated mask forward with ```threshold = 0.003```. 
     - The checkpoint and log file location folder: <br />
-"```train_cifar_autopoly1_relay/resnet18__cifar10_relay_0.003/cosine_sp0.5wm_lr0.01mep50_baseline```" (Best: ReLU counts: ```91,960```, ACC ``` 92.59%```) <br /> 
-"```train_cifar_autopoly1_relay/resnet18__cifar10_relay_0.003/cosine_sp0.9wm_lr0.01mep50_baseline```" (Best: ReLU counts: ```18,839```, ACC ``` 92.84%```) <br />
-"```train_cifar_autopoly1_relay/resnet18__cifar10_relay_0.003/cosine_sp0.95wm_lr0.01mep50_baseline```" (Best: ReLU counts: ```9,370```, ACC ``` 92.85%```) <br /> 
+"```train_cifar_autopoly1_relay/resnet18__cifar10_relay_0.003/cosine_sp0.5wm_lr0.01mep50_baseline```" (Best: ReLU counts: ```94,193```, ACC ``` 93.69%```) <br /> 
+"```train_cifar_autopoly1_relay/resnet18__cifar10_relay_0.003/cosine_sp0.9wm_lr0.01mep50_baseline```" (Best: ReLU counts: ```18,822```, ACC ``` 93.52%```) <br />
+"```train_cifar_autopoly1_relay/resnet18__cifar10_relay_0.003/cosine_sp0.95wm_lr0.01mep50_baseline```" (Best: ReLU counts: ```9,388```, ACC ``` 93.58%```) <br /> 

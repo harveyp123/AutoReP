@@ -88,7 +88,8 @@ class ReLU_masked_relay(nn.Module):
                                                 getattr(self, "alpha_mask_{}_{}".format(self.current_feature, self.sel_mask))) ### Mask for element which applies ReLU
             self.current_feature = (self.current_feature + 1) % self.num_feature
         neuron_pass_mask = 1 - neuron_relu_mask  ### Mask for element which ignore ReLU
-        out = self.act(torch.mul(x, neuron_relu_mask)) + torch.mul(x, neuron_pass_mask)
+        # out = self.act(torch.mul(x, neuron_relu_mask)) + torch.mul(x, neuron_pass_mask)
+        out = torch.mul(self.act(x), neuron_relu_mask) + torch.mul(self.act(x), neuron_pass_mask)
         out = self.dropout(out)
         return out
 
@@ -158,7 +159,8 @@ class ReLU_masked_spgrad_relay(nn.Module):
                                                 getattr(self, "alpha_mask_{}_{}".format(self.current_feature, self.sel_mask))) ### Mask for element which applies ReLU
             self.current_feature = (self.current_feature + 1) % self.num_feature
         neuron_pass_mask = 1 - neuron_relu_mask  ### Mask for element which ignore ReLU
-        out = self.act(torch.mul(x, neuron_relu_mask)) + ReLU_Pruned.apply(torch.mul(x, neuron_pass_mask))
+        # out = self.act(torch.mul(x, neuron_relu_mask)) + ReLU_Pruned.apply(torch.mul(x, neuron_pass_mask))
+        out = torch.mul(self.act(x), neuron_relu_mask) + torch.mul(ReLU_Pruned.apply(x), neuron_pass_mask)
         out = self.dropout(out)
         out_relu = F.relu(x)
         if (self.training and self.p > 0):
@@ -325,7 +327,25 @@ class ReLU_masked_autopoly_relay(nn.Module):
             out_act_rep = eval("self.act_d{}_var{}".format(self.degree, act_choice))
             self.current_feature = (self.current_feature + 1) % self.num_feature
         neuron_pass_mask = 1 - neuron_relu_mask  ### Mask for element which ignore ReLU
-        out = torch.mul(self.act(x), neuron_relu_mask) + torch.mul(out_act_rep(x), neuron_pass_mask)
+        # print(neuron_relu_mask)
+        # print(neuron_pass_mask)
+        out = torch.mul(self.act(x), neuron_relu_mask.expand_as(x)) + torch.mul(out_act_rep(x), neuron_pass_mask.expand_as(x))
+        # out = self.act(torch.mul(x, neuron_relu_mask)) + torch.mul(x, neuron_pass_mask)
+        # out = torch.mul(self.act(x), neuron_relu_mask) + torch.mul(x, neuron_pass_mask)
+
+
+        # if not self.training:
+        #     with torch.no_grad():
+        #         test_out = (self.act(x) - out).pow(2).sum().sqrt()
+        #         print(test_out)
+
+
+        # if not self.training:
+        #     with torch.no_grad():
+        #         neuron_relu_mask_test = neuron_relu_mask.sum()
+        #         neuron_pass_mask_test = neuron_pass_mask.sum()
+        #         print(out_act_rep)
+        #         print(neuron_relu_mask_test, neuron_pass_mask_test)
         out = self.dropout(out)
         
         if (self.training and self.p > 0):

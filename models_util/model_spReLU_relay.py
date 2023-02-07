@@ -200,12 +200,18 @@ class ReLU_masked_autopoly_relay(nn.Module):
             setattr(eval('self.alpha_mask_{}_{}'.format(self.num_feature, i)), 'requires_grad', False)
         
         ### Initialize the channel wise polynoimal activation parameter
-        channel_size = [1, size[0], 1, 1]
+        if len(size) == 3:
+            para_size = [1, size[0], 1, 1]
+        elif len(size) == 1:
+            para_size = [1, size[0]]
+        else:
+            print("Operation with {} not supported".format(size))
+            exit()
         exec("self.poly_para_{} = []".format(self.num_feature))
         for i in range(self.degree + 1):
             # print("channel size:", channel_size)
             # print(nn.Parameter(torch.Tensor(*channel_size)))
-            setattr(self, "poly_para_{}_{}".format(self.num_feature, i), nn.Parameter(torch.Tensor(*channel_size)))
+            setattr(self, "poly_para_{}_{}".format(self.num_feature, i), nn.Parameter(torch.Tensor(*para_size)))
             if i == 0:
                 nn.init.uniform_(getattr(self, "poly_para_{}_{}".format(self.num_feature, i)), a = 0, b = 0.0001)
             elif i == 1:

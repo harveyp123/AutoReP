@@ -250,12 +250,18 @@ class ReLU_masked_autopoly(nn.Module):
             nn.init.uniform_(getattr(self, "alpha_aux_{}_{}".format(self.num_feature, i)), a = 0, b = 1) # weight init for aux parameter, can be truncated normal
 
         ### Initialize the channel wise polynoimal activation parameter
-        channel_size = [1, size[0], 1, 1]
+        if len(size) == 4:
+            para_size = [1, size[0], 1, 1]
+        elif len(size) == 2:
+            para_size = [1, size[1]]
+        else:
+            print("Operation with {} not supported".format(size))
+            exit()
         exec("self.poly_para_{} = []".format(self.num_feature))
         for i in range(self.degree + 1):
             # print("channel size:", channel_size)
             # print(nn.Parameter(torch.Tensor(*channel_size)))
-            setattr(self, "poly_para_{}_{}".format(self.num_feature, i), nn.Parameter(torch.Tensor(*channel_size)))
+            setattr(self, "poly_para_{}_{}".format(self.num_feature, i), nn.Parameter(torch.Tensor(*para_size)))
             if i == 0:
                 nn.init.uniform_(getattr(self, "poly_para_{}_{}".format(self.num_feature, i)), a = 0, b = 0.0001)
             elif i == 1:

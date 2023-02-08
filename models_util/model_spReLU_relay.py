@@ -205,7 +205,7 @@ class ReLU_masked_autopoly_relay(nn.Module):
         elif len(size) == 1:
             para_size = [1, size[0]]
         else:
-            print("Operation with {} not supported".format(size))
+            print("Size with {} not supported".format(size))
             exit()
         exec("self.poly_para_{} = []".format(self.num_feature))
         for i in range(self.degree + 1):
@@ -323,6 +323,178 @@ class ReLU_masked_autopoly_relay(nn.Module):
         #         print(out_act_rep)
         #         print(neuron_relu_mask_test, neuron_pass_mask_test)
 
+        # out = self.dropout(out)
+        
+        # if (self.training and self.p > 0):
+        #     out_relu = F.relu(x)
+        #     sel = float(random.uniform(0, 1) < self.p)
+        #     out_final = sel * out_relu + (1 - sel) * out
+        #     return out_final
+        # else:
+        #     return out
+        return out
+
+
+### ReLU with run time initialization method
+# mask1: bitmap, 1 means has ReLU, 0 means direct pass.
+# mask2: bitmap, 1 means direct pass, 0 means have ReLU
+# a*mask2: passed element
+# a*mask1: element need to be ReLU
+# ReLU(a*mask1) + a*mask2
+class ReLU_masked_dapa_relay(nn.Module):
+    def __init__(self, config, Num_mask = 1, dropRate=0):
+        super().__init__()
+        self.Num_mask = Num_mask
+        self.num_feature = 0
+        self.current_feature = 0
+        self.sel_mask = 0
+        self.init = 1
+        self.threshold = config.threshold
+        self.degree = config.degree
+        self.freezeact = config.freezeact
+        self.scale_x2 = config.scale_x2
+        self.out_act_rep = eval("x{}act_auto".format(self.degree))
+        self.var_min = config.var_min
+        self.dropout = nn.Dropout2d(p=dropRate, inplace=True)
+        self.p = dropRate
+
+        self.itr_cnt = 0
+    @torch.no_grad()
+    def init_w_aux(self, size):
+        for i in range(self.Num_mask):
+            setattr(self, "alpha_aux_{}_{}".format(self.num_feature, i), nn.Parameter(torch.Tensor(*size)))
+            setattr(self, "alpha_mask_{}_{}".format(self.num_feature, i), nn.Parameter(torch.Tensor(*size)))
+            nn.init.uniform_(getattr(self, "alpha_aux_{}_{}".format(self.num_feature, i)), a = 0, b = 1) # weight init for aux parameter, can be truncated normal
+            nn.init.constant_(getattr(self, "alpha_mask_{}_{}".format(self.num_feature, i)), 1)
+            setattr(eval('self.alpha_mask_{}_{}'.format(self.num_feature, i)), 'requires_grad', False)
+        
+        ### Initialize the channel wise polynoimal activation parameter
+        if len(size) == 3:
+            para_size = [1, size[0], 1, 1]
+            #### Create the batch norm utility to get the running mean and variance of the activation function.
+            setattr(self, "bn_{}".format(self.num_feature), nn.BatchNorm2d(num_features = size[0], affine=False))
+        elif len(size) == 1:
+            para_size = [1, size[0]]
+            #### Create the batch norm utility to get the running mean and variance of the activation function.
+            setattr(self, "bn_{}".format(self.num_feature), nn.BatchNorm1d(num_features = size[0], affine=False))
+        else:
+            print("Size with {} not supported".format(size))
+            exit()
+        exec("self.poly_para_{} = []".format(self.num_feature))
+        for i in range(self.degree + 1):
+            setattr(self, "poly_para_{}_{}".format(self.num_feature, i), nn.Parameter(torch.Tensor(*para_size)))
+            if i == 0:
+                nn.init.uniform_(getattr(self, "poly_para_{}_{}".format(self.num_feature, i)), a = 0, b = 0.0001)
+            elif i == 1:
+                nn.init.uniform_(getattr(self, "poly_para_{}_{}".format(self.num_feature, i)), a = 1, b = 1.0001)
+            elif i == 2:
+                nn.init.uniform_(getattr(self, "poly_para_{}_{}".format(self.num_feature, i)), a = 0, b = 0.0001)
+            else:
+                print("we currently don't have support for degree higher than 2")
+                exit()
+            setattr(eval("self.poly_para_{}_{}".format(self.num_feature, i)), 'requires_grad', False) 
+            exec("self.poly_para_{}.append(self.poly_para_{}_{})".format(self.num_feature, self.num_feature, i))
+
+        
+        
+    ## aggregate the polynomial parameter to a list
+    def expand_aggr_poly(self,):
+        for current_feature in range(self.num_feature):
+            exec("self.poly_para_{} = []".format(current_feature))
+            for i in range(self.degree + 1):
+                exec("self.poly_para_{}.append(self.poly_para_{}_{})".format(current_feature, current_feature, i))
+
+    @torch.no_grad()
+    def update_poly(self, x):
+        if self.current_feature == 0:
+            self.itr_cnt += 1
+        bn_layer = eval("self.bn_{}".format(self.current_feature))
+        bn_out = bn_layer(x)
+        # print("Itr {}, Batch norm {} running mean:".format(self.itr_cnt, self.current_feature))
+        # print(bn_layer.running_mean)
+        # print("Itr {}, Batch norm {} running variance:".format(self.itr_cnt, self.current_feature))
+        # print(bn_layer.running_var)
+        if self.itr_cnt%10 == 0:
+            u = bn_layer.running_mean
+            # v = torch.clip(bn_layer.running_var, min=0.04)
+            v = torch.clip(bn_layer.running_var, min=self.var_min)
+            para = eval("approx_{}rd_torch(u, v)".format(self.degree))
+            # print("Itr {}, replacement parameter in layer {}:".format(self.itr_cnt, self.current_feature))
+            # print("Bias: ", para[0])
+            # print("Weight: ", para[1])
+            # exit()/
+
+            # Ignore batch size dimension
+            size = list(x.size())[1:]
+            if len(size) == 3:
+                para_size = [1, size[0], 1, 1]
+            elif len(size) == 1:
+                para_size = [1, size[0]]
+            else:
+                print("Size with {} not supported".format(size))
+                exit()
+            for i in range(self.degree + 1):
+                getattr(self, "poly_para_{}_{}".format(self.current_feature, i)).data.copy_(para[i].view(*para_size))
+        # print("Updated successfully: {}", eval("self.poly_para_{}_{}".format(self.current_feature, i)))
+        # exit()
+    @torch.no_grad()
+    def update_mask(self):
+        for feature_i in range(self.num_feature):
+            mask_old = getattr(self, "alpha_mask_{}_{}".format(feature_i, self.sel_mask)).data
+            in_tensor = getattr(self, "alpha_aux_{}_{}".format(feature_i, self.sel_mask)).data
+            mask_new = mask_old * (in_tensor > (-1) * self.threshold).float() + (1 - mask_old) * (in_tensor > self.threshold).float()
+            getattr(self, "alpha_mask_{}_{}".format(feature_i, self.sel_mask)).data.copy_(mask_new)
+
+    def mask_density_forward(self):
+        l0_reg = 0
+        sparse_list = []
+        sparse_pert_list = []
+        total_mask = 0
+        for feature_i in range(self.num_feature):
+            neuron_mask = STEFunction_relay.apply(getattr(self, "alpha_aux_{}_{}".format(feature_i, self.sel_mask)), 
+                                            getattr(self, "alpha_mask_{}_{}".format(feature_i, self.sel_mask)))
+            l0_reg += torch.sum(neuron_mask)
+            sparse_list.append(torch.sum(neuron_mask).item())
+            sparse_pert_list.append(sparse_list[-1]/neuron_mask.numel())
+            total_mask += neuron_mask.numel()
+        global_density = l0_reg/total_mask 
+        return global_density, sparse_list, sparse_pert_list, total_mask
+
+    def forward(self, x):
+        ### Initialize the parameter at the beginning
+        if self.init:
+            x_size = list(x.size())[1:] ### Ignore batch size dimension
+            self.init_w_aux(x_size)
+            neuron_relu_mask = STEFunction_relay.apply(getattr(self, "alpha_aux_{}_{}".format(self.num_feature, self.sel_mask)), 
+                                                getattr(self, "alpha_mask_{}_{}".format(self.num_feature, self.sel_mask))) ### Mask for element which applies ReLU
+            out_act_rep = self.out_act_rep
+            if self.degree == 2:
+                out_act_rep = partial(out_act_rep, para = eval("self.poly_para_{}".format(self.num_feature)), scale_x2 = self.scale_x2)
+            else:
+                out_act_rep = partial(out_act_rep, para = eval("self.poly_para_{}".format(self.num_feature)))
+            
+
+            self.num_feature += 1
+        ### Conduct recurrently inference during normal inference and training
+        else:
+            if self.current_feature == 0:
+                self.expand_aggr_poly()
+                self.update_mask()
+
+            # print("Current used: ", getattr(self, "alpha_aux_{}_{}".format(self.current_feature, self.sel_mask)))
+            neuron_relu_mask = STEFunction_relay.apply(getattr(self, "alpha_aux_{}_{}".format(self.current_feature, self.sel_mask)), 
+                                                getattr(self, "alpha_mask_{}_{}".format(self.current_feature, self.sel_mask))) ### Mask for element which applies ReLU
+            out_act_rep = self.out_act_rep
+            if self.degree == 2:
+                out_act_rep = partial(out_act_rep, para = eval("self.poly_para_{}".format(self.current_feature)), scale_x2 = self.scale_x2)
+            else:
+                out_act_rep = partial(out_act_rep, para = eval("self.poly_para_{}".format(self.current_feature)))
+            self.update_poly(x)
+            self.current_feature = (self.current_feature + 1) % self.num_feature
+
+        neuron_pass_mask = 1 - neuron_relu_mask  ### Mask for element which ignore ReLU
+
+        out = torch.mul(F.relu(x), neuron_relu_mask.expand_as(x)) + torch.mul(out_act_rep(x), neuron_pass_mask.expand_as(x))
         # out = self.dropout(out)
         
         # if (self.training and self.p > 0):

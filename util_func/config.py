@@ -42,7 +42,7 @@ class TrainCifarConfig(BaseConfig):
         parser.add_argument('--dataset',  default='cifar10', help='cifar10 / cifar100')
         parser.add_argument('--data_path', default='./data/', help='CIFAR10 / MNIST / FashionMNIST')
         parser.add_argument('--act_type', type=str, default='nn.ReLU', choices = ['nn.ReLU', 'ReLU_masked', 'ReLU_masked_spgrad', 
-        'ReLU_masked_relay', 'ReLU_masked_spgrad_relay', 'ReLU_masked_autopoly_relay', 'ReLU_masked_autopoly'],
+        'ReLU_masked_relay', 'ReLU_masked_spgrad_relay', 'ReLU_masked_autopoly_relay', 'ReLU_masked_autopoly', 'ReLU_masked_dapa_relay'],
              help='Which non-lienar function to be used in the training')
         parser.add_argument('--freezeact', action='store_true', default=False, help='Freeze the activation or not')
         parser.add_argument('--degree', type=int, default=2, help='The degree of approximation for autopoly')
@@ -50,6 +50,7 @@ class TrainCifarConfig(BaseConfig):
         
         parser.add_argument('--w_mask_lr', type=float, default=0.02, help='lr for weights of trainable mask')
         parser.add_argument('--w_lr', type=float, default=0.1, help='lr for weights')
+        parser.add_argument('--var_min', type=float, default=0.1, help='Minimum value for variance')
         parser.add_argument('--w_lr_min', type=float, default=0.00001, help='minimum lr for weights')
         parser.add_argument('--w_momentum', type=float, default=0.9, help='momentum for weights')
         parser.add_argument('--w_weight_decay', type=float, default=5e-4, help='weight decay for weights')
@@ -101,27 +102,30 @@ class TrainCifarConfig(BaseConfig):
         if self.evaluate:
             str_first = self.optim + '_' + ("baseline_" if self.act_type == 'nn.ReLU' else "")
             str_first +=  "mask_dropout_{}".format(self.mask_dropout) if self.mask_dropout > 0 else ""
+            str_append = ('_var{}'.format(self.var_min) if "_dapa" in self.act_type else "")
             str_folder = "evaluate_cifar" + ("_poly" if "_poly" in self.act_type else "") + (("_autopoly" + str(self.degree)) if "_autopoly" in self.act_type else "")\
              + ("_distil" if self.distil else "")
             str_folder += "_relay" if "relay" in self.act_type else ""
             str_folder += "_x" if self.freezeact else ""
             relay_append = "_relay_{}".format(self.threshold) if "relay" in self.act_type else ""
             if self.mask_epochs == 0:
-                self.path = os.path.join(str_folder, f'{self.arch}_{self.teacher_arch}_{self.dataset}' + relay_append, str_first + str("ReLUs{}lr{}ep{}_{}".format(self.ReLU_count, self.w_lr, self.epochs, self.ext)))
+                self.path = os.path.join(str_folder, f'{self.arch}_{self.teacher_arch}_{self.dataset}' + relay_append, str_first + str("ReLUs{}lr{}ep{}_{}".format(self.ReLU_count, self.w_lr, self.epochs, self.ext))  + str_append)
             else:
-                self.path = os.path.join(str_folder, f'{self.arch}_{self.teacher_arch}_{self.dataset}' + relay_append, str_first + str("ReLUs{}wm_lr{}mep{}_{}".format(self.ReLU_count, self.w_mask_lr, self.mask_epochs, self.ext)))
+                self.path = os.path.join(str_folder, f'{self.arch}_{self.teacher_arch}_{self.dataset}' + relay_append, str_first + str("ReLUs{}wm_lr{}mep{}_{}".format(self.ReLU_count, self.w_mask_lr, self.mask_epochs, self.ext)) + str_append)
         else:
             str_first = self.optim + '_' + ("baseline_" if self.act_type == 'nn.ReLU' else "")
             str_first +=  "mask_dropout_{}".format(self.mask_dropout) if self.mask_dropout > 0 else ""
+            str_append = ('_var{}'.format(self.var_min) if "_dapa" in self.act_type else "")
+
             str_folder = "train_cifar" + ("_poly" if "_poly" in self.act_type else "") + (("_autopoly" + str(self.degree)) if "_autopoly" in self.act_type else "")\
-             + ("_distil" if self.distil else "")
+             + (("_dapa" + str(self.degree)) if "_dapa" in self.act_type else "") + ("_distil" if self.distil else "")
             str_folder += "_relay" if "relay" in self.act_type else ""
             str_folder += "_x" if self.freezeact else ""
             relay_append = "_relay_{}".format(self.threshold) if "relay" in self.act_type else ""
             if self.mask_epochs == 0:
-                self.path = os.path.join(str_folder, f'{self.arch}_{self.teacher_arch}_{self.dataset}' + relay_append, str_first + str("ReLUs{}lr{}ep{}_{}".format(self.ReLU_count, self.w_lr, self.epochs, self.ext)))
+                self.path = os.path.join(str_folder, f'{self.arch}_{self.teacher_arch}_{self.dataset}' + relay_append, str_first + str("ReLUs{}lr{}ep{}_{}".format(self.ReLU_count, self.w_lr, self.epochs, self.ext)) + str_append)
             else:
-                self.path = os.path.join(str_folder, f'{self.arch}_{self.teacher_arch}_{self.dataset}' + relay_append, str_first + str("ReLUs{}wm_lr{}mep{}_{}".format(self.ReLU_count, self.w_mask_lr, self.mask_epochs, self.ext)))
+                self.path = os.path.join(str_folder, f'{self.arch}_{self.teacher_arch}_{self.dataset}' + relay_append, str_first + str("ReLUs{}wm_lr{}mep{}_{}".format(self.ReLU_count, self.w_mask_lr, self.mask_epochs, self.ext)) + str_append)
         # self.eval_log = os.path.join("evaluate", f'evaluate_{self.arch}', self.name + str("_lat_lmd_{:.0e}_lr{}ep{}".format(self.lat_lamda, self.w_lr, self.epochs)))
         self.plot_path = os.path.join(self.path, 'plots')
         self.gpus = parse_gpus(self.gpus)

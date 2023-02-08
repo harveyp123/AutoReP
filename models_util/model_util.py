@@ -130,7 +130,7 @@ class model_ReLU_RP(nn.Module):
         for m in self.modules():
             if isinstance(m, nn.BatchNorm2d):
                 m.eval()
-                if freeze_bn_affine:
+                if (freeze_bn_affine and m.affine == True):
                     m.weight.requires_grad = not freeze_bn
                     m.bias.requires_grad = not freeze_bn
 

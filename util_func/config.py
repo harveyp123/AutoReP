@@ -50,7 +50,7 @@ class TrainCifarConfig(BaseConfig):
         
         parser.add_argument('--w_mask_lr', type=float, default=0.02, help='lr for weights of trainable mask')
         parser.add_argument('--w_lr', type=float, default=0.1, help='lr for weights')
-        parser.add_argument('--var_min', type=float, default=0.1, help='Minimum value for variance')
+        parser.add_argument('--var_min', type=float, default=0.5, help='Minimum value for variance')
         parser.add_argument('--w_lr_min', type=float, default=0.00001, help='minimum lr for weights')
         parser.add_argument('--w_momentum', type=float, default=0.9, help='momentum for weights')
         parser.add_argument('--w_weight_decay', type=float, default=5e-4, help='weight decay for weights')
@@ -102,7 +102,7 @@ class TrainCifarConfig(BaseConfig):
         if self.evaluate:
             str_first = self.optim + '_' + ("baseline_" if self.act_type == 'nn.ReLU' else "")
             str_first +=  "mask_dropout_{}".format(self.mask_dropout) if self.mask_dropout > 0 else ""
-            str_append = ('_var{}'.format(self.var_min) if "_dapa" in self.act_type else "")
+            str_append = ''#('_var{}'.format(self.var_min) if "_dapa" in self.act_type else "")
             str_folder = "evaluate_cifar" + ("_poly" if "_poly" in self.act_type else "") + (("_autopoly" + str(self.degree)) if "_autopoly" in self.act_type else "")\
              + ("_distil" if self.distil else "")
             str_folder += "_relay" if "relay" in self.act_type else ""
@@ -115,7 +115,7 @@ class TrainCifarConfig(BaseConfig):
         else:
             str_first = self.optim + '_' + ("baseline_" if self.act_type == 'nn.ReLU' else "")
             str_first +=  "mask_dropout_{}".format(self.mask_dropout) if self.mask_dropout > 0 else ""
-            str_append = ('_var{}'.format(self.var_min) if "_dapa" in self.act_type else "")
+            str_append = ''#('_var{}'.format(self.var_min) if "_dapa" in self.act_type else "")
 
             str_folder = "train_cifar" + ("_poly" if "_poly" in self.act_type else "") + (("_autopoly" + str(self.degree)) if "_autopoly" in self.act_type else "")\
              + (("_dapa" + str(self.degree)) if "_dapa" in self.act_type else "") + ("_distil" if self.distil else "")

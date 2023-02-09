@@ -358,7 +358,7 @@ class ReLU_masked_dapa_relay(nn.Module):
         self.dropout = nn.Dropout2d(p=dropRate, inplace=True)
         self.p = dropRate
 
-        self.itr_cnt = 0
+        self.itr_cnt = nn.Parameter(torch.Tensor([0.]))
     @torch.no_grad()
     def init_w_aux(self, size):
         for i in range(self.Num_mask):
@@ -392,7 +392,8 @@ class ReLU_masked_dapa_relay(nn.Module):
             else:
                 print("we currently don't have support for degree higher than 2")
                 exit()
-            setattr(eval("self.poly_para_{}_{}".format(self.num_feature, i)), 'requires_grad', False) 
+            #### Make the polynomial parameter to be trainable
+            setattr(eval("self.poly_para_{}_{}".format(self.num_feature, i)), 'requires_grad', True) 
             exec("self.poly_para_{}.append(self.poly_para_{}_{})".format(self.num_feature, self.num_feature, i))
 
         
@@ -406,7 +407,8 @@ class ReLU_masked_dapa_relay(nn.Module):
 
     @torch.no_grad()
     def update_poly(self, x):
-        if self.current_feature == 0:
+        #### Stop running mean and variance calculation after 508th iteration
+        if self.current_feature == 0 and self.itr_cnt < 508:
             self.itr_cnt += 1
         bn_layer = eval("self.bn_{}".format(self.current_feature))
         bn_out = bn_layer(x)
@@ -414,11 +416,16 @@ class ReLU_masked_dapa_relay(nn.Module):
         # print(bn_layer.running_mean)
         # print("Itr {}, Batch norm {} running variance:".format(self.itr_cnt, self.current_feature))
         # print(bn_layer.running_var)
-        if self.itr_cnt%10 == 0:
+        if ((self.itr_cnt%10) == 0):
             u = bn_layer.running_mean
             # v = torch.clip(bn_layer.running_var, min=0.04)
             v = torch.clip(bn_layer.running_var, min=self.var_min)
             para = eval("approx_{}rd_torch(u, v)".format(self.degree))
+            para = list(para)
+            if self.degree == 2: 
+                para[2] = para[2]/self.scale_x2
+            
+
             # print("Itr {}, replacement parameter in layer {}:".format(self.itr_cnt, self.current_feature))
             # print("Bias: ", para[0])
             # print("Weight: ", para[1])

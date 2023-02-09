@@ -25,8 +25,3 @@ nohup python -u train_cifar.py --gpu 3 --arch resnet18 --ReLU_count 51.2 --w_mas
  --optim cosine --act_type ReLU_masked_autopoly_relay --threshold 0.003> ./out/resnet18_mask_train_autopoly_cnt51.2_evaluate.txt &
 
 
-# nohup python -u train_cifar.py --gpu 1 --arch resnet18 --ReLU_count 1.8 --w_mask_lr 0.01 --w_lr 0.001\
-#  --mask_epochs 0 --epochs 0 --degree 1 --lamda 4.0e1\
-#  --evaluate ./train_cifar_autopoly1_relay/resnet18__cifar10_relay_0.003/cosine_ReLUs1.8lr0.001ep30_baseline/best.pth.tar\
-#  --optim cosine --act_type ReLU_masked_autopoly_relay --threshold 0.003> ./out/resnet18_mask_train_autopoly_cnt1.8_finetune_evaluate.txt &
-

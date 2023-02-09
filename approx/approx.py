@@ -5,7 +5,7 @@ from scipy import special
 def approx_1rd(u, v):
     w1 = 1 - special.erfc(np.sqrt(2)*u/(2*v))/2
     w0 = np.sqrt(2)*v*np.exp(-u**2/(2*v**2))/(2*np.sqrt(np.pi))
-    return w0, w1
+    return w0/10, w1
 def approx_1rd_loss(u, v):
     loss = -u**2*special.erfc(np.sqrt(2)*u/(2*v))**2/4 + u**2*special.erfc(np.sqrt(2)*u/(2*v))/2 + np.sqrt(2)*u*v*np.exp(-u**2/(2*v**2))*special.erfc(np.sqrt(2)*u/(2*v))/(2*np.sqrt(np.pi)) - np.sqrt(2)*u*v*np.exp(-u**2/(2*v**2))/(2*np.sqrt(np.pi)) - v**2*special.erfc(np.sqrt(2)*u/(2*v))**2/4 + v**2*special.erfc(np.sqrt(2)*u/(2*v))/2 - v**2*np.exp(-u**2/v**2)/(2*np.pi)
     return loss
@@ -13,7 +13,7 @@ def approx_2rd(u, v):
     w2 = np.sqrt(2)*np.exp(-u**2/(2*v**2))/(4*np.sqrt(np.pi)*v)
     w1 = -np.sqrt(2)*u*np.exp(-u**2/(2*v**2))/(2*np.sqrt(np.pi)*v) - special.erfc(np.sqrt(2)*u/(2*v))/2 + 1
     w0 = np.sqrt(2)*u**2*np.exp(-u**2/(2*v**2))/(4*np.sqrt(np.pi)*v) + np.sqrt(2)*v*np.exp(-u**2/(2*v**2))/(4*np.sqrt(np.pi))
-    return w0, w1, w2 
+    return w0/10, w1, w2/10 
 def approx_2rd_loss(u, v):
     loss = -u**2*special.erfc(np.sqrt(2)*u/(2*v))**2/4 + u**2*special.erfc(np.sqrt(2)*u/(2*v))/2 + np.sqrt(2)*u*v*np.exp(-u**2/(2*v**2))*special.erfc(np.sqrt(2)*u/(2*v))/(2*np.sqrt(np.pi)) - np.sqrt(2)*u*v*np.exp(-u**2/(2*v**2))/(2*np.sqrt(np.pi)) - v**2*special.erfc(np.sqrt(2)*u/(2*v))**2/4 + v**2*special.erfc(np.sqrt(2)*u/(2*v))/2 - 3*v**2*np.exp(-u**2/v**2)/(4*np.pi)
     return loss

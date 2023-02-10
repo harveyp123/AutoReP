@@ -7,6 +7,7 @@ import torch.nn.init as init
 import logging
 from models_util import *
 from models_cifar import *
+from models_snl import *
 
 def replace_relu(model, replacement_fn):
     for name, module in model.named_children():
@@ -43,12 +44,13 @@ class model_ReLU_RP(nn.Module):
         #### Initialize model architecture
         self.config = config
         self.arch = config.arch
-        if config.dataset == "cifar100":
-            self.model = eval(config.arch + '(num_classes = 100)')
-        elif config.dataset == "cifar10":
-            self.model = eval(config.arch + '(num_classes = 10)')
-        else:
-            print("dataset not supported yet")
+        # if config.dataset == "cifar100":
+        #     self.model = eval(config.arch + '(num_classes = 100)')
+        # elif config.dataset == "cifar10":
+        #     self.model = eval(config.arch + '(num_classes = 10)')
+        # else:
+        #     print("dataset not supported yet")
+        self.model = eval(config.arch + '(config)')
         self.model.apply(_weights_init)
         self.Num_mask = config.Num_mask #### Initialize how many masks
         self.x_size = config.x_size #### Input image size, for example in cifar 10, it's [1, 3, 32, 32]

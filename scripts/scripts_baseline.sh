@@ -20,5 +20,17 @@ mkdir -p ./out/
 # ### Location of checkpoint file, log file, and tb for tensorboard file are in folder: 
 # ### train_cifar/resnet9__cifar10/cosine_baseline_ReLUs0lr0.1ep400_baseline
 
-nohup python -u train_cifar.py --gpu 5 --arch resnet18_in --dataset cifar10 --w_lr 0.1 --mask_epochs 0 --epochs 400 --dataset cifar100\
- --optim cosine --act_type nn.ReLU > ./out/resnet18_in_cifar100_baseline.txt &
+# nohup python -u train_cifar.py --gpu 3 --arch resnet18_in --w_lr 0.1 --mask_epochs 0 --epochs 400 --dataset cifar10\
+#  --optim cosine --act_type nn.ReLU > ./out/resnet18_in_cifar10_baseline.txt &
+# nohup python -u train_cifar.py --gpu 0 --arch resnet18_in --w_lr 0.1 --mask_epochs 0 --epochs 400 --dataset cifar100\
+#  --optim cosine --act_type nn.ReLU > ./out/resnet18_in_cifar100_baseline.txt &
+# nohup python -u train_cifar.py --gpu 5 --arch resnet18_in --w_lr 0.1 --mask_epochs 0 --epochs 400 --dataset tiny_imagenet --data_path "/data/tiny-imagenet-200"\
+#  --optim cosine --act_type nn.ReLU > ./out/resnet18_in_tiny_imagenet_baseline.txt &
+
+# nohup python -u train_cifar.py --gpu 2 --arch wide_resnet_22_8 --w_lr 0.1 --mask_epochs 0 --epochs 400 --dataset cifar10\
+#  --optim cosine --act_type nn.ReLU > ./out/wide_resnet_22_8_cifar10_baseline.txt &
+# nohup python -u train_cifar.py --gpu 1 --arch wide_resnet_22_8 --w_lr 0.1 --mask_epochs 0 --epochs 400 --dataset cifar100\
+#  --optim cosine --act_type nn.ReLU > ./out/wide_resnet_22_8_cifar100_baseline.txt &
+nohup python -u train_cifar.py --gpu 3 --arch wide_resnet_22_8 --w_lr 0.1 --mask_epochs 0 --epochs 400 --dataset tiny_imagenet --data_path "/data/tiny-imagenet-200"\
+ --optim cosine --act_type nn.ReLU > ./out/wide_resnet_22_8_tiny_imagenet_baseline.txt &
+

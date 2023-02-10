@@ -38,15 +38,15 @@ class BaseConfig(argparse.Namespace):
 
 class TrainCifarConfig(BaseConfig):
     def build_parser(self):
-        parser = get_parser("CIFAR-10 Training config")
+        parser = get_parser("CIFAR-10/CIFAR-100/TinyImagenet Training config")
         parser.add_argument('--dataset',  default='cifar10', help='cifar10 / cifar100')
-        parser.add_argument('--data_path', default='./data/', help='CIFAR10 / MNIST / FashionMNIST')
+        parser.add_argument('--data_path', default='./data/', help='Dataset path')
         parser.add_argument('--act_type', type=str, default='nn.ReLU', choices = ['nn.ReLU', 'ReLU_masked', 'ReLU_masked_spgrad', 
         'ReLU_masked_relay', 'ReLU_masked_spgrad_relay', 'ReLU_masked_autopoly_relay', 'ReLU_masked_autopoly', 'ReLU_masked_dapa_relay'],
              help='Which non-lienar function to be used in the training')
         parser.add_argument('--freezeact', action='store_true', default=False, help='Freeze the activation or not')
         parser.add_argument('--degree', type=int, default=2, help='The degree of approximation for autopoly')
-        parser.add_argument('--batch_size', type=int, default=128, help='batch size')
+        parser.add_argument('--batch_size', type=int, default=256, help='batch size')
         
         parser.add_argument('--w_mask_lr', type=float, default=0.02, help='lr for weights of trainable mask')
         parser.add_argument('--w_lr', type=float, default=0.1, help='lr for weights')
@@ -135,5 +135,13 @@ class TrainCifarConfig(BaseConfig):
         elif self.dataset == "cifar100":
             self.num_classes = 100
             self.x_size = [1, 3, 32, 32]
+        elif self.dataset == "tiny_imagenet":
+            self.num_classes = 200
+            self.x_size = [1, 3, 64, 64]
+        elif self.dataset == "imagenet":
+            self.x_size = [1, 3, 224, 224]
+        else:
+            print("Dataset {} is not included yet".format(self.dataset))
+        ####Need to add another else for tinyimaganet
 
 

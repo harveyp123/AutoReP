@@ -16,7 +16,8 @@ import pytorch_warmup as warmup
 from models_util import *
 from models_cifar import *
 from train_util import *
-from archs_unstructured import *
+from util_func.dataset import get_dataset, DATASETS
+
 import math
 import copy
 config = TrainCifarConfig()
@@ -75,48 +76,55 @@ def main():
         teacher_model = teacher_model.to(device)
         teacher_model.eval()
         criterion_kd = SoftTarget(4.0).to(device)
-    
-    if config.dataset == "cifar10":
-        normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                        std=[0.229, 0.224, 0.225])
-        train_loader = torch.utils.data.DataLoader(
-            datasets.CIFAR10(root=config.data_path, train=True, transform=transforms.Compose([
-                transforms.RandomHorizontalFlip(),
-                transforms.RandomCrop(32, 4),
-                transforms.ToTensor(),
-                normalize,
-            ]), download=True),
-            batch_size=config.batch_size, shuffle=True,
-            num_workers=config.workers, pin_memory=True)
 
-        val_loader = torch.utils.data.DataLoader(
-            datasets.CIFAR10(root=config.data_path, train=False, transform=transforms.Compose([
-                transforms.ToTensor(),
-                normalize,
-            ])),
-            batch_size=config.batch_size, shuffle=False,
-            num_workers=config.workers, pin_memory=True)
+    train_dataset = get_dataset(config, 'train')
+    val_dataset = get_dataset(config, 'test')
+    pin_memory = (config.dataset == "imagenet")
+    train_loader = torch.utils.data.DataLoader(train_dataset, shuffle=True, batch_size=config.batch_size,
+                              num_workers=config.workers, pin_memory=pin_memory)
+    val_loader = torch.utils.data.DataLoader(val_dataset, shuffle=False, batch_size=config.batch_size,
+                             num_workers=config.workers, pin_memory=pin_memory)
+    # if config.dataset == "cifar10":
+    #     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+    #                                     std=[0.229, 0.224, 0.225])
+    #     train_loader = torch.utils.data.DataLoader(
+    #         datasets.CIFAR10(root=config.data_path, train=True, transform=transforms.Compose([
+    #             transforms.RandomHorizontalFlip(),
+    #             transforms.RandomCrop(32, 4),
+    #             transforms.ToTensor(),
+    #             normalize,
+    #         ]), download=True),
+    #         batch_size=config.batch_size, shuffle=True,
+    #         num_workers=config.workers, pin_memory=True)
 
-    elif config.dataset == "cifar100":
-        normalize = transforms.Normalize(mean=[0.4914, 0.4822, 0.4465],
-                                         std=[0.2023, 0.1994, 0.2010])
-        train_loader = torch.utils.data.DataLoader(
-            datasets.CIFAR100(root=config.data_path, train=True, transform=transforms.Compose([
-                transforms.RandomHorizontalFlip(),
-                transforms.RandomCrop(32, 4),
-                transforms.ToTensor(),
-                normalize,
-            ]), download=True),
-            batch_size=config.batch_size, shuffle=True,
-            num_workers=config.workers, pin_memory=True)
+    #     val_loader = torch.utils.data.DataLoader(
+    #         datasets.CIFAR10(root=config.data_path, train=False, transform=transforms.Compose([
+    #             transforms.ToTensor(),
+    #             normalize,
+    #         ])),
+    #         batch_size=config.batch_size, shuffle=False,
+    #         num_workers=config.workers, pin_memory=True)
 
-        val_loader = torch.utils.data.DataLoader(
-            datasets.CIFAR100(root=config.data_path, train=False, transform=transforms.Compose([
-                transforms.ToTensor(),
-                normalize,
-            ])),
-            batch_size=config.batch_size, shuffle=False,
-            num_workers=config.workers, pin_memory=True)
+    # elif config.dataset == "cifar100":
+    #     normalize = transforms.Normalize(mean=[0.4914, 0.4822, 0.4465],
+    #                                      std=[0.2023, 0.1994, 0.2010])
+    #     train_loader = torch.utils.data.DataLoader(
+    #         datasets.CIFAR100(root=config.data_path, train=True, transform=transforms.Compose([
+    #             transforms.RandomHorizontalFlip(),
+    #             transforms.RandomCrop(32, 4),
+    #             transforms.ToTensor(),
+    #             normalize,
+    #         ]), download=True),
+    #         batch_size=config.batch_size, shuffle=True,
+    #         num_workers=config.workers, pin_memory=True)
+
+    #     val_loader = torch.utils.data.DataLoader(
+    #         datasets.CIFAR100(root=config.data_path, train=False, transform=transforms.Compose([
+    #             transforms.ToTensor(),
+    #             normalize,
+    #         ])),
+    #         batch_size=config.batch_size, shuffle=False,
+    #         num_workers=config.workers, pin_memory=True)
 
     if config.evaluate:
 

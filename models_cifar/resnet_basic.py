@@ -51,7 +51,7 @@ class BasicBlock(nn.Module):
         # Both self.conv1 and self.downsample layers downsample the input when stride != 1
         self.conv1 = conv3x3(inplanes, planes, stride)
         self.bn1 = norm_layer(planes)
-        self.relu = nn.ReLU(inplace=True)
+        self.relu = nn.ReLU()
         self.conv2 = conv3x3(planes, planes)
         self.bn2 = norm_layer(planes)
         self.downsample = downsample
@@ -96,7 +96,7 @@ class Bottleneck(nn.Module):
         # Both self.conv2 and self.downsample layers downsample the input when stride != 1
         self.conv1 = conv1x1(inplanes, width)
         self.bn1 = norm_layer(width)
-        self.relu = nn.ReLU(inplace=True)
+        self.relu = nn.ReLU()
         self.conv2 = conv3x3(width, width, stride, groups, dilation)
         self.bn2 = norm_layer(width)
         self.conv3 = conv1x1(width, planes * self.expansion)
@@ -162,7 +162,7 @@ class ResNet_Gated(nn.Module):
         )
 
         self.bn1 = norm_layer(self.inplanes)
-        self.relu = nn.ReLU(inplace=True)
+        self.relu = nn.ReLU()
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
 
         self.layer1 = self._make_layer(block, 64, layers[0])
@@ -244,32 +244,32 @@ def _resnet(block, layers, num_classes=10):
     model = ResNet_Gated( block, layers, num_classes = num_classes)
     return model
 
-def resnet9(num_classes = 10):
+def resnet9(config):
     """Constructs a ResNet-8 model.
     """
     return _resnet(BasicBlock, [1, 1, 1, 1],  
-                num_classes
+                config.num_classes
             )
 
-def resnet18(num_classes = 10):
+def resnet18(config):
     """Constructs a ResNet-18 model.
     """
     return _resnet(BasicBlock, [2, 2, 2, 2],  
-                num_classes
+                config.num_classes
             )
 
 
-def resnet34(num_classes = 10):
+def resnet34(config):
     """Constructs a ResNet-34 model.
     """
     return _resnet(BasicBlock, [3, 4, 6, 3], 
-                num_classes
+                config.num_classes
             )
 
 
-def resnet50(num_classes = 10):
+def resnet50(config):
     """Constructs a ResNet-50 model.
     """
     return _resnet(Bottleneck, [3, 4, 6, 3], 
-                num_classes
+                config.num_classes
             )

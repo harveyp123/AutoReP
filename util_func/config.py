@@ -54,7 +54,8 @@ class TrainCifarConfig(BaseConfig):
         parser.add_argument('--w_lr_min', type=float, default=0.00001, help='minimum lr for weights')
         parser.add_argument('--w_momentum', type=float, default=0.9, help='momentum for weights')
         parser.add_argument('--w_weight_decay', type=float, default=5e-4, help='weight decay for weights')
-        parser.add_argument('--w_grad_clip', type=float, default=5., help='gradient clipping for weights')
+        parser.add_argument('--enable_grad_norm', action='store_true', default=False, help='Using gradient normalization or not')
+        parser.add_argument('--w_grad_clip', type=float, default=4., help='gradient clipping for weights')
         parser.add_argument('--w_decay_epoch', type=int, default=20, help='lr decay for training')
         # parser.add_argument('--alpha_lr', type=float, default=5e-4, help='lr for alpha')
         parser.add_argument('--alpha_lr', type=float, default=2e-4, help='lr for alpha')
@@ -62,6 +63,7 @@ class TrainCifarConfig(BaseConfig):
         parser.add_argument('--threshold', type=float, default=0.001, help='Threshold of Relay function')
         parser.add_argument('--lamda', type=float, default=1e1, help='penalty iterm for ReLU mask')
         # parser.add_argument('--lamda', type=float, default=2e1, help='penalty iterm for ReLU mask')
+        parser.add_argument('--scale_x1', type=float, default=1.0, help='Scaling factor for x term')
         parser.add_argument('--scale_x2', type=float, default=0.1, help='Scaling factor for x2 term')
         parser.add_argument('--alpha_weight_decay', type=float, default=1e-3, help='weight decay for alpha')
         parser.add_argument('--print_freq', type=int, default=100, help='print frequency')
@@ -76,9 +78,11 @@ class TrainCifarConfig(BaseConfig):
         parser.add_argument('-e', '--evaluate', default=None, type=str, metavar='PATH',
                             help='path to checkpoint (default: none), evaluate model on validation set')
         parser.add_argument('--pretrained_path', help='Pretained model path')
-        
+
+        parser.add_argument('--distil', action='store_true', default=False, help='Using distiling or not')
         parser.add_argument('--teacher_arch', default='', type=str, help='Teacher pretained model path')
         parser.add_argument('--teacher_path', type=str, help='Teacher pretained model path')
+        
         parser.add_argument('--checkpoint_path', help='Checkpoint path')
         # parser.add_argument('--pool_type', default='nn.AvgPool2d', help='Pooling layer type')
         # parser.add_argument('--pool_type', default='nn.MaxPool2d', help='Pooling layer type')
@@ -89,7 +93,7 @@ class TrainCifarConfig(BaseConfig):
         parser.add_argument('--optim', type=str, default='cosine',choices = ['cosine', 'cosine_finetune', 'cosine_rst', 'cos_modified'], help='Optimizer choice')
         parser.add_argument('--precision', type=str, default='full', choices = ['full', 'half'], help='Full precision training or half precision training')
         parser.add_argument('--ext', default='baseline', help='Extension name')
-        parser.add_argument('--distil', action='store_true', default=False, help='Using distiling or not')
+        
         return parser
 
     def __init__(self):

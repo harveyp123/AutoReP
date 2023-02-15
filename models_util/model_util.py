@@ -80,18 +80,23 @@ class model_ReLU_RP(nn.Module):
             for model in self._ReLU_sp_models:
                 model.init = 0
 
+    
         ### Initialize _alpha_aux, _weights lists
         ### self._alpha_aux[i] is the ith _alpha_aux parameter
         self._alpha_aux = {}
         for i in range(self.Num_mask):
             self._alpha_aux[i] = []
         self._weights = []
+        self._weights_and_alpha = []
         for name, parameter in self.named_parameters():
             if 'alpha_aux' in name:
                 num = int(name.split("_")[-1])
-                self._alpha_aux[num].append((name, parameter))                 
+                self._alpha_aux[num].append((name, parameter))    
+                self._weights_and_alpha.append((name, parameter))             
             else: 
                 self._weights.append((name, parameter))
+                self._weights_and_alpha.append((name, parameter))
+            
         self._alpha_mask = {}
         for i in range(self.Num_mask):
             self._alpha_mask[i] = []
@@ -104,6 +109,12 @@ class model_ReLU_RP(nn.Module):
             yield p
     def named_weights(self):
         for n, p in self._weights:
+            yield n, p
+    def weights_and_alpha(self):
+        for n, p in self._weights_and_alpha:
+            yield p
+    def named_weights_and_alpha(self):
+        for n, p in self._weights_and_alpha:
             yield n, p
     def alpha_aux(self):
         for n, p in self._alpha_aux[self.sel_mask]:

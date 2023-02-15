@@ -5,7 +5,7 @@ import torch.nn.functional as F
 import util_func.utils as utils
 from models_util import *
 
-def train_mask_distil(train_loader, model, w_optim, alpha_optim, lambda0, teacher_model, criterion_kd, epoch, device, config, logger, writer):
+def train_mask_distil(train_loader, model, w_optim, lambda0, teacher_model, criterion_kd, epoch, device, config, logger, writer):
     """
         Run one train epoch
     """
@@ -23,38 +23,30 @@ def train_mask_distil(train_loader, model, w_optim, alpha_optim, lambda0, teache
         input = input.to(device, non_blocking=True)
         target = target.to(device, non_blocking=True)
 
-        alpha_optim.zero_grad()
+        # alpha_optim.zero_grad()
         ### Compute cross entropy loss: ###
+        # output = model(input)
+        # ce_loss = model.criterion(output, target)
+        # global_density, sparse_list, sparse_pert_list, total_mask = model._ReLU_sp_models[0].mask_density_forward()
+
+        #### compute gradient and do SGD step
+        # loss = ce_loss + lambda0*(F.relu(global_density - config.ReLU_count * 1000.0/total_mask))
+        # loss.backward()
+        # alpha_optim.step()
+
+        
         output = model(input)
         ce_loss = model.criterion(output, target)
         global_density, sparse_list, sparse_pert_list, total_mask = model._ReLU_sp_models[0].mask_density_forward()
-        # sparse_list = []
-        # sparse_pert_list = []
-        # l0_reg = 0
-        # for name, param in model._alpha_aux[0]:
-        #     neuron_mask = STEFunction.apply(param)
-        #     l0_reg += torch.sum(neuron_mask)
-        #     sparse_list.append(torch.sum(neuron_mask).item())
-        #     sparse_pert_list.append(sparse_list[-1]/neuron_mask.numel())
-        # global_density = l0_reg/total_mask 
-
-        # compute gradient and do SGD step
-        loss = ce_loss + lambda0*(F.relu(global_density - config.ReLU_count * 1000.0/total_mask))
-        loss.backward()
-        alpha_optim.step()
-        # if 'relay' in config.act_type:
-        #     model._ReLU_sp_models[0].update_mask()
-
-        w_optim.zero_grad()
-        output = model(input)
-        ce_loss = model.criterion(output, target)
-
+        loss_reg = lambda0*(F.relu(global_density - config.ReLU_count * 1000.0/total_mask))
         outputs_t = teacher_model(input)
         kd_loss = criterion_kd(output, outputs_t)
-        loss = ce_loss + kd_loss
+        loss = ce_loss + kd_loss + loss_reg
+        w_optim.zero_grad()
         loss.backward()
         # gradient clipping
-        # nn.utils.clip_grad_norm_(model.weights(), config.w_grad_clip)
+        if config.enable_grad_norm:
+            nn.utils.clip_grad_norm_(model.weights(), config.w_grad_clip)
         w_optim.step()
 
         output = output.float()
@@ -83,7 +75,7 @@ def train_mask_distil(train_loader, model, w_optim, alpha_optim, lambda0, teache
     logger.info("Train: [{:2d}/{}] Final Prec@1 {:.4%}".format(epoch+1, config.epochs, top1.avg))
     return top1.avg, global_density.item(), total_mask
 
-def train_mask_distil_fp16(train_loader, model, w_optim, alpha_optim, lambda0, teacher_model, criterion_kd, epoch, device, config, logger, writer):
+def train_mask_distil_fp16(train_loader, model, w_optim, lambda0, teacher_model, criterion_kd, epoch, device, config, logger, writer):
     """
         Run one train epoch
     """
@@ -102,44 +94,38 @@ def train_mask_distil_fp16(train_loader, model, w_optim, alpha_optim, lambda0, t
         input = input.to(device, non_blocking=True)
         target = target.to(device, non_blocking=True)
 
-        alpha_optim.zero_grad()
-        ### Compute cross entropy loss: ###
-        with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=use_amp):
-            output = model(input)
-            ce_loss = model.criterion(output, target)
+        # alpha_optim.zero_grad()
+        # ### Compute cross entropy loss: ###
+        # with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=use_amp):
+        #     output = model(input)
+        #     ce_loss = model.criterion(output, target)
 
-        global_density, sparse_list, sparse_pert_list, total_mask = model._ReLU_sp_models[0].mask_density_forward()
-        # sparse_list = []
-        # sparse_pert_list = []
+        #     global_density, sparse_list, sparse_pert_list, total_mask = model._ReLU_sp_models[0].mask_density_forward()
 
-        # l0_reg = 0
-        # for name, param in model._alpha_aux[0]:
-        #     neuron_mask = STEFunction.apply(param)
-        #     l0_reg += torch.sum(neuron_mask)
-        #     sparse_list.append(torch.sum(neuron_mask).item())
-        #     sparse_pert_list.append(sparse_list[-1]/neuron_mask.numel())
-        # global_density = l0_reg/total_mask
-        # compute gradient and do SGD step
-        loss = ce_loss + lambda0*(F.relu(global_density - config.ReLU_count * 1000.0/total_mask))
+        #     loss = ce_loss + lambda0*(F.relu(global_density - config.ReLU_count * 1000.0/total_mask))
         # loss.backward()
         # alpha_optim.step()
-        scaler.scale(loss).backward()
-        scaler.step(alpha_optim)
-        scaler.update()
+        # scaler.scale(loss).backward()
+        # scaler.step(alpha_optim)
+        # scaler.update()
 
-        w_optim.zero_grad()
+        
         with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=use_amp):
             output = model(input)
             ce_loss = model.criterion(output, target)
             outputs_t = teacher_model(input)
             kd_loss = criterion_kd(output, outputs_t)
-            loss = ce_loss + kd_loss
+            global_density, sparse_list, sparse_pert_list, total_mask = model._ReLU_sp_models[0].mask_density_forward()
+            loss_reg = lambda0*(F.relu(global_density - config.ReLU_count * 1000.0/total_mask))
+            loss = ce_loss + kd_loss + loss_reg
         # loss.backward()
         # ce_loss.backward()
+        w_optim.zero_grad()
         scaler.scale(loss).backward()
         scaler.unscale_(w_optim)
         # gradient clipping
-        # nn.utils.clip_grad_norm_(model.weights(), config.w_grad_clip)
+        if config.enable_grad_norm:
+            nn.utils.clip_grad_norm_(model.weights(), config.w_grad_clip)
         # w_optim.step()
         scaler.step(w_optim)
         scaler.update()
@@ -186,15 +172,17 @@ def train_distil(train_loader, model, w_optim, teacher_model, criterion_kd, epoc
         N = input.size(0)
         input = input.to(device, non_blocking=True)
         target = target.to(device, non_blocking=True)
-        w_optim.zero_grad()
+        
         output = model(input)
         ce_loss = model.criterion(output, target)
         outputs_t = teacher_model(input)
         kd_loss = criterion_kd(output, outputs_t)
         loss = ce_loss + kd_loss
+        w_optim.zero_grad()
         loss.backward()
         # gradient clipping
-        # nn.utils.clip_grad_norm_(model.weights(), config.w_grad_clip)
+        if config.enable_grad_norm:
+            nn.utils.clip_grad_norm_(model.weights(), config.w_grad_clip)
         w_optim.step()
 
         output = output.float()
@@ -245,7 +233,7 @@ def train_distil_fp16(train_loader, model, w_optim, teacher_model, criterion_kd,
         # # gradient clipping
         # nn.utils.clip_grad_norm_(model.weights(), config.w_grad_clip)
         # w_optim.step()
-        w_optim.zero_grad()
+        
         with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=use_amp):
             output = model(input)
             ce_loss = model.criterion(output, target)
@@ -254,10 +242,12 @@ def train_distil_fp16(train_loader, model, w_optim, teacher_model, criterion_kd,
             loss = ce_loss + kd_loss
         # loss_all.backward()
         # ce_loss.backward()
+        w_optim.zero_grad()
         scaler.scale(loss).backward()
         scaler.unscale_(w_optim)
         # gradient clipping
-        # nn.utils.clip_grad_norm_(model.weights(), config.w_grad_clip)
+        if config.enable_grad_norm:
+            nn.utils.clip_grad_norm_(model.weights(), config.w_grad_clip)
         # w_optim.step()
         scaler.step(w_optim)
         scaler.update()
@@ -284,7 +274,7 @@ def train_distil_fp16(train_loader, model, w_optim, teacher_model, criterion_kd,
     logger.info("Train: [{:2d}/{}] Final Prec@1 {:.4%}".format(epoch+1, config.epochs, top1.avg))
     return top1.avg 
 
-def train_mask(train_loader, model, w_optim, alpha_optim, lambda0, epoch, device, config, logger, writer):
+def train_mask(train_loader, model, w_optim, lambda0, epoch, device, config, logger, writer):
     """
         Run one train epoch
     """
@@ -302,32 +292,28 @@ def train_mask(train_loader, model, w_optim, alpha_optim, lambda0, epoch, device
         input = input.to(device, non_blocking=True)
         target = target.to(device, non_blocking=True)
 
-        alpha_optim.zero_grad()
+        # alpha_optim.zero_grad()
         ### Compute cross entropy loss: ###
+        # output = model(input)
+        # ce_loss = model.criterion(output, target)
+        # global_density, sparse_list, sparse_pert_list, total_mask = model._ReLU_sp_models[0].mask_density_forward()
+
+        # loss = ce_loss + lambda0*(F.relu(global_density - config.ReLU_count * 1000.0/total_mask))
+        # loss.backward()
+        # alpha_optim.step()
+
+
+        
         output = model(input)
         ce_loss = model.criterion(output, target)
         global_density, sparse_list, sparse_pert_list, total_mask = model._ReLU_sp_models[0].mask_density_forward()
-        # sparse_list = []
-        # sparse_pert_list = []
-        # l0_reg = 0
-        # for name, param in model._alpha_aux[0]:
-        #     neuron_mask = STEFunction.apply(param)
-        #     l0_reg += torch.sum(neuron_mask)
-        #     sparse_list.append(torch.sum(neuron_mask).item())
-        #     sparse_pert_list.append(sparse_list[-1]/neuron_mask.numel())
-        # global_density = l0_reg/total_mask 
-        # compute gradient and do SGD step
-        loss = ce_loss + lambda0*(F.relu(global_density - config.ReLU_count * 1000.0/total_mask))
-        loss.backward()
-        alpha_optim.step()
-
-
+        loss_reg = lambda0*(F.relu(global_density - config.ReLU_count * 1000.0/total_mask))
+        loss = ce_loss + loss_reg
         w_optim.zero_grad()
-        output = model(input)
-        loss = model.criterion(output, target)
         loss.backward()
         # gradient clipping
-        # nn.utils.clip_grad_norm_(model.weights(), config.w_grad_clip)
+        if config.enable_grad_norm:
+            nn.utils.clip_grad_norm_(model.weights(), config.w_grad_clip)
         w_optim.step()
 
         output = output.float()
@@ -356,7 +342,7 @@ def train_mask(train_loader, model, w_optim, alpha_optim, lambda0, epoch, device
     logger.info("Train: [{:2d}/{}] Final Prec@1 {:.4%}".format(epoch+1, config.epochs, top1.avg))
     return top1.avg, global_density.item(), total_mask
 
-def train_mask_fp16(train_loader, model, w_optim, alpha_optim, lambda0, epoch, device, config, logger, writer):
+def train_mask_fp16(train_loader, model, w_optim, lambda0, epoch, device, config, logger, writer):
     """
         Run one train epoch
     """
@@ -375,38 +361,33 @@ def train_mask_fp16(train_loader, model, w_optim, alpha_optim, lambda0, epoch, d
         input = input.to(device, non_blocking=True)
         target = target.to(device, non_blocking=True)
 
-        alpha_optim.zero_grad()
+        # alpha_optim.zero_grad()
         ### Compute cross entropy loss: ###
-        with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=use_amp):
-            output = model(input)
-            ce_loss = model.criterion(output, target)
-        global_density, sparse_list, sparse_pert_list, total_mask = model._ReLU_sp_models[0].mask_density_forward()
-        # sparse_list = []
-        # sparse_pert_list = []
-        # l0_reg = 0
-        # for name, param in model._alpha_aux[0]:
-        #     neuron_mask = STEFunction.apply(param)
-        #     l0_reg += torch.sum(neuron_mask)
-        #     sparse_list.append(torch.sum(neuron_mask).item())
-        #     sparse_pert_list.append(sparse_list[-1]/neuron_mask.numel())
-        # global_density = l0_reg/total_mask
-        # compute gradient and do SGD step
-        loss = ce_loss + lambda0*(F.relu(global_density - config.ReLU_count * 1000.0/total_mask))
-        # loss.backward()
-        # alpha_optim.step()
-        scaler.scale(loss).backward()
-        scaler.step(alpha_optim)
-        scaler.update()
+        # with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=use_amp):
+        #     output = model(input)
+        #     ce_loss = model.criterion(output, target)
+        #     global_density, sparse_list, sparse_pert_list, total_mask = model._ReLU_sp_models[0].mask_density_forward()
+        #     loss = ce_loss + lambda0*(F.relu(global_density - config.ReLU_count * 1000.0/total_mask))
+        # # loss.backward()
+        # # alpha_optim.step()
+        # scaler.scale(loss).backward()
+        # scaler.step(alpha_optim)
+        # scaler.update()
 
-        w_optim.zero_grad()
+        
         with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=use_amp):
             output = model(input)
-            loss = model.criterion(output, target)
+            global_density, sparse_list, sparse_pert_list, total_mask = model._ReLU_sp_models[0].mask_density_forward()
+            ce_loss = model.criterion(output, target)
+            loss_reg = lambda0*(F.relu(global_density - config.ReLU_count * 1000.0/total_mask))
+            loss = ce_loss + loss_reg
         # ce_loss.backward()
+        w_optim.zero_grad()
         scaler.scale(loss).backward()
         scaler.unscale_(w_optim)
         # gradient clipping
-        # nn.utils.clip_grad_norm_(model.weights(), config.w_grad_clip)
+        if config.enable_grad_norm:
+            nn.utils.clip_grad_norm_(model.weights(), config.w_grad_clip)
         # w_optim.step()
         scaler.step(w_optim)
         scaler.update()
@@ -453,12 +434,14 @@ def train(train_loader, model, w_optim, epoch, device, config, logger, writer):
         N = input.size(0)
         input = input.to(device, non_blocking=True)
         target = target.to(device, non_blocking=True)
-        w_optim.zero_grad()
+        
         output = model(input)
         loss = model.criterion(output, target)
+        w_optim.zero_grad()
         loss.backward()
         # gradient clipping
-        # nn.utils.clip_grad_norm_(model.weights(), config.w_grad_clip)
+        if config.enable_grad_norm:
+            nn.utils.clip_grad_norm_(model.weights(), config.w_grad_clip)
         w_optim.step()
 
         output = output.float()
@@ -509,15 +492,17 @@ def train_fp16(train_loader, model, w_optim, epoch, device, config, logger, writ
         # # gradient clipping
         # nn.utils.clip_grad_norm_(model.weights(), config.w_grad_clip)
         # w_optim.step()
-        w_optim.zero_grad()
+        
         with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=use_amp):
             output = model(input)
             loss = model.criterion(output, target)
         # ce_loss.backward()
+        w_optim.zero_grad()
         scaler.scale(loss).backward()
         scaler.unscale_(w_optim)
         # gradient clipping
-        # nn.utils.clip_grad_norm_(model.weights(), config.w_grad_clip)
+        if not config.enable_grad_norm:
+            nn.utils.clip_grad_norm_(model.weights(), config.w_grad_clip)
         # w_optim.step()
         scaler.step(w_optim)
         scaler.update()

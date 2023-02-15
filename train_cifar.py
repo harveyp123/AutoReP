@@ -84,47 +84,6 @@ def main():
                               num_workers=config.workers, pin_memory=pin_memory)
     val_loader = torch.utils.data.DataLoader(val_dataset, shuffle=False, batch_size=config.batch_size,
                              num_workers=config.workers, pin_memory=pin_memory)
-    # if config.dataset == "cifar10":
-    #     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-    #                                     std=[0.229, 0.224, 0.225])
-    #     train_loader = torch.utils.data.DataLoader(
-    #         datasets.CIFAR10(root=config.data_path, train=True, transform=transforms.Compose([
-    #             transforms.RandomHorizontalFlip(),
-    #             transforms.RandomCrop(32, 4),
-    #             transforms.ToTensor(),
-    #             normalize,
-    #         ]), download=True),
-    #         batch_size=config.batch_size, shuffle=True,
-    #         num_workers=config.workers, pin_memory=True)
-
-    #     val_loader = torch.utils.data.DataLoader(
-    #         datasets.CIFAR10(root=config.data_path, train=False, transform=transforms.Compose([
-    #             transforms.ToTensor(),
-    #             normalize,
-    #         ])),
-    #         batch_size=config.batch_size, shuffle=False,
-    #         num_workers=config.workers, pin_memory=True)
-
-    # elif config.dataset == "cifar100":
-    #     normalize = transforms.Normalize(mean=[0.4914, 0.4822, 0.4465],
-    #                                      std=[0.2023, 0.1994, 0.2010])
-    #     train_loader = torch.utils.data.DataLoader(
-    #         datasets.CIFAR100(root=config.data_path, train=True, transform=transforms.Compose([
-    #             transforms.RandomHorizontalFlip(),
-    #             transforms.RandomCrop(32, 4),
-    #             transforms.ToTensor(),
-    #             normalize,
-    #         ]), download=True),
-    #         batch_size=config.batch_size, shuffle=True,
-    #         num_workers=config.workers, pin_memory=True)
-
-    #     val_loader = torch.utils.data.DataLoader(
-    #         datasets.CIFAR100(root=config.data_path, train=False, transform=transforms.Compose([
-    #             transforms.ToTensor(),
-    #             normalize,
-    #         ])),
-    #         batch_size=config.batch_size, shuffle=False,
-    #         num_workers=config.workers, pin_memory=True)
 
     if config.evaluate:
 
@@ -145,13 +104,20 @@ def main():
         return
         # # ----------------------------
     # weights optimizer
-    w_optim = torch.optim.SGD(model.weights(), config.w_mask_lr, momentum=config.w_momentum,
-                              weight_decay=config.w_weight_decay)
-    # alphas optimizer
-    if config.act_type != 'nn.ReLU':
-        alpha_optim = torch.optim.Adam(model.alpha_aux(), config.alpha_lr, betas=(0.5, 0.999),
-                                    weight_decay=config.alpha_weight_decay)
-          
+    # w_optim = torch.optim.SGD(model.weights(), config.w_mask_lr, momentum=config.w_momentum,
+    #                           weight_decay=config.w_weight_decay)
+    # #w_optim = torch.optim.Adam(model.weights(), config.w_mask_lr)
+    # # alphas optimizer
+    # if config.act_type != 'nn.ReLU':
+    #     alpha_optim = torch.optim.Adam(model.alpha_aux(), config.alpha_lr, betas=(0.5, 0.999),
+    #                                 weight_decay=config.alpha_weight_decay)
+    w_optim = torch.optim.Adam(model.weights_and_alpha(), config.w_mask_lr)
+    # w_optim = torch.optim.Adam(model.weights_and_alpha(), config.w_mask_lr, weight_decay=config.w_weight_decay)
+    # w_optim = torch.optim.SGD(model.weights_and_alpha(), config.w_mask_lr)
+    # w_optim = torch.optim.SGD(model.weights_and_alpha(), config.w_mask_lr, momentum=config.w_momentum,
+    #                           weight_decay=config.w_weight_decay)
+
+
     # param_groups = [
     #     {'optimizer':w_optim,'T_max':config.mask_epochs, 'eta_min':config.w_lr_min},
     #     {'optimizer':alpha_optim,'T_max':config.mask_epochs}
@@ -159,8 +125,8 @@ def main():
  
     lr_scheduler_w = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer = w_optim, T_max = config.mask_epochs, 
                         eta_min = config.w_lr_min)
-    if config.act_type != 'nn.ReLU':
-        lr_scheduler_alpha = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer = alpha_optim, T_max = config.mask_epochs)        
+    # if config.act_type != 'nn.ReLU':
+    #     lr_scheduler_alpha = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer = alpha_optim, T_max = config.mask_epochs)        
     # warmup_scheduler = warmup.UntunedLinearWarmup(alpha_optim)
 
     #### Freeze batch normalization ####
@@ -180,30 +146,35 @@ def main():
 
         if config.precision == 'full':
             if(config.distil):
-                top1_train, global_density, total_mask = train_mask_distil(train_loader, model, w_optim, alpha_optim, lambda0, teacher_model, criterion_kd, epoch, 
+                top1_train, global_density, total_mask = train_mask_distil(train_loader, model, w_optim, lambda0, teacher_model, criterion_kd, epoch, 
                                                  device, config, logger, writer)
             else:
-                top1_train, global_density, total_mask = train_mask(train_loader, model, w_optim, alpha_optim, lambda0, epoch, 
+                top1_train, global_density, total_mask = train_mask(train_loader, model, w_optim, lambda0, epoch, 
                                                  device, config, logger, writer)
         else:
             if(config.distil):
-                top1_train, global_density, total_mask = train_mask_distil_fp16(train_loader, model, w_optim, alpha_optim, lambda0, teacher_model, criterion_kd, epoch, 
+                top1_train, global_density, total_mask = train_mask_distil_fp16(train_loader, model, w_optim, lambda0, teacher_model, criterion_kd, epoch, 
                                                  device, config, logger, writer)
             else:
-                top1_train, global_density, total_mask = train_mask_fp16(train_loader, model, w_optim, alpha_optim, lambda0, epoch, 
+                top1_train, global_density, total_mask = train_mask_fp16(train_loader, model, w_optim, lambda0, epoch, 
                                                  device, config, logger, writer)
         # training without mask update
 
         # adjust_learning_rate(w_optim, epoch, config)
         lr_scheduler_w.step()
-        lr_scheduler_alpha.step()
+        # lr_scheduler_alpha.step()
         # validation
         cur_step = (epoch+1) * len(train_loader)
-        top1 = validate(val_loader, model, epoch, cur_step, device, config, logger, writer)
+        if config.precision == 'full':
+            top1 = validate(val_loader, model, epoch, cur_step, device, config, logger, writer)
+        else:
+            top1 = validate_fp16(val_loader, model, epoch, cur_step, device, config, logger, writer)
 
         # save 
         # save 
-        if (global_density - config.ReLU_count*1000/total_mask) < 0.01:
+        relu_count = global_density * total_mask/1000
+        # if (global_density - config.ReLU_count*1000/total_mask) < 0.01:
+        if (relu_count - config.ReLU_count) < 2:
             if best_top1 < top1:
                 best_top1 = top1
                 # best_genotype = genotype
@@ -270,7 +241,10 @@ def main():
             lr_scheduler.step()
         # validation
         cur_step = (epoch+1) * len(train_loader)
-        top1 = validate(val_loader, model, epoch, cur_step, device, config, logger, writer)
+        if config.precision == 'full':
+            top1 = validate(val_loader, model, epoch, cur_step, device, config, logger, writer)
+        else:
+            top1 = validate_fp16(val_loader, model, epoch, cur_step, device, config, logger, writer)
 
         # save 
         if best_top1 < top1:
@@ -289,7 +263,10 @@ def main():
 
         if (epoch % 20) == 0:
             logger.info("Perform validation on training dataset. ")
-            top1_train_wo_dropout = validate_train(train_loader, model, epoch, cur_step, device, config, logger, writer)
+            if config.precision == 'full':
+                top1_train_wo_dropout = validate_train(train_loader, model, epoch, cur_step, device, config, logger, writer)
+            else:
+                top1_train_wo_dropout = validate_train_fp16(train_loader, model, epoch, cur_step, device, config, logger, writer)
             logger.info("Final train Prec@1 = {:.4%}".format(top1_train_wo_dropout))
 
     logger.info("Final best validation Prec@1 = {:.4%}".format(best_top1))

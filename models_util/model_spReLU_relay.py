@@ -352,6 +352,7 @@ class ReLU_masked_dapa_relay(nn.Module):
         self.threshold = config.threshold
         self.degree = config.degree
         self.freezeact = config.freezeact
+        self.scale_x1 = config.scale_x1
         self.scale_x2 = config.scale_x2
         self.out_act_rep = eval("x{}act_auto".format(self.degree))
         self.var_min = config.var_min
@@ -422,8 +423,9 @@ class ReLU_masked_dapa_relay(nn.Module):
             v = torch.clip(bn_layer.running_var, min=self.var_min)
             para = eval("approx_{}rd_torch(u, v)".format(self.degree))
             para = list(para)
-            if self.degree == 2: 
-                para[2] = para[2]/self.scale_x2
+            para[1] = para[1]/self.scale_x1
+            # if self.degree == 2: 
+            #     para[2] = para[2]/self.scale_x2
             
 
             # print("Itr {}, replacement parameter in layer {}:".format(self.itr_cnt, self.current_feature))
@@ -478,7 +480,7 @@ class ReLU_masked_dapa_relay(nn.Module):
             if self.degree == 2:
                 out_act_rep = partial(out_act_rep, para = eval("self.poly_para_{}".format(self.num_feature)), scale_x2 = self.scale_x2)
             else:
-                out_act_rep = partial(out_act_rep, para = eval("self.poly_para_{}".format(self.num_feature)))
+                out_act_rep = partial(out_act_rep, para = eval("self.poly_para_{}".format(self.num_feature)), scale_x1 = self.scale_x1)
             
 
             self.num_feature += 1
@@ -495,7 +497,7 @@ class ReLU_masked_dapa_relay(nn.Module):
             if self.degree == 2:
                 out_act_rep = partial(out_act_rep, para = eval("self.poly_para_{}".format(self.current_feature)), scale_x2 = self.scale_x2)
             else:
-                out_act_rep = partial(out_act_rep, para = eval("self.poly_para_{}".format(self.current_feature)))
+                out_act_rep = partial(out_act_rep, para = eval("self.poly_para_{}".format(self.current_feature)), scale_x1 = self.scale_x1)
             self.update_poly(x)
             self.current_feature = (self.current_feature + 1) % self.num_feature
 

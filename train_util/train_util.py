@@ -17,7 +17,7 @@ def train_mask_distil(train_loader, model, w_optim, lambda0, teacher_model, crit
     # switch to train mode
     total_mask = model._get_num_gates().item()
     model.train()
-
+    teacher_model.eval()
     for step, (input, target) in enumerate(train_loader):
         N = input.size(0)
         input = input.to(device, non_blocking=True)
@@ -89,6 +89,7 @@ def train_mask_distil_fp16(train_loader, model, w_optim, lambda0, teacher_model,
     model.train()
     use_amp = True
     scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
+    teacher_model.eval()
     for step, (input, target) in enumerate(train_loader):
         N = input.size(0)
         input = input.to(device, non_blocking=True)
@@ -168,6 +169,7 @@ def train_distil(train_loader, model, w_optim, teacher_model, criterion_kd, epoc
     # switch to train mode
     total_mask = model._get_num_gates().item()
     model.train()
+    teacher_model.eval()
     for step, (input, target) in enumerate(train_loader):
         N = input.size(0)
         input = input.to(device, non_blocking=True)
@@ -221,7 +223,7 @@ def train_distil_fp16(train_loader, model, w_optim, teacher_model, criterion_kd,
     model.train()
     use_amp = True
     scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
-    
+    teacher_model.eval()
     for step, (input, target) in enumerate(train_loader):
         N = input.size(0)
         input = input.to(device, non_blocking=True)

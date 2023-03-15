@@ -17,7 +17,6 @@ from models_util import *
 from models_cifar import *
 from train_util import *
 from util_func.dataset import get_dataset, DATASETS
-
 import math
 import copy
 config = TrainCifarConfig()
@@ -66,7 +65,7 @@ def main():
     if config.pretrained_path:
         print("==> Load pretrained")
         model.load_pretrained(pretrained_path = config.pretrained_path)
-    if config.distil:
+    if config.distil and (config.dataset != 'imagenet'):
         teacher_model.load_pretrained(pretrained_path = config.teacher_path)
     if(config.checkpoint_path):
         config.start_epoch, best_top1 = model.load_check_point(check_point_path = config.checkpoint_path)
@@ -80,6 +79,7 @@ def main():
     train_dataset = get_dataset(config, 'train')
     val_dataset = get_dataset(config, 'test')
     pin_memory = (config.dataset == "imagenet")
+
     train_loader = torch.utils.data.DataLoader(train_dataset, shuffle=True, batch_size=config.batch_size,
                               num_workers=config.workers, pin_memory=pin_memory)
     val_loader = torch.utils.data.DataLoader(val_dataset, shuffle=False, batch_size=config.batch_size,
@@ -88,21 +88,23 @@ def main():
     if config.evaluate:
 
         # # ----------------------------
-        checkpoint = torch.load(config.evaluate, map_location="cpu")
-        model.load_state_dict(checkpoint['state_dict'])
+        if config.evaluate != 'None':
+            checkpoint = torch.load(config.evaluate, map_location="cpu")
+            model.load_state_dict(checkpoint['state_dict'])
         # print(model)
         from torchinfo import summary
         device = "cuda"
-        summary(model, input_size=config.x_size, device=device, depth=3, verbose=2,
+        summary(model, input_size=(1, 3, 32, 32), device=device, depth=3, verbose=2,
             col_names=["input_size",
                         "output_size",
                         "kernel_size"],
         )
         
-        if config.act_type != 'nn.ReLU':
-            model.print_alphas(logger)
-        validate(val_loader, model, 0, len(val_loader), device, config, logger, writer)
-
+        if config.precision == 'full':
+            validate(val_loader, model, 0, len(val_loader), device, config, logger, writer)
+        else:
+            validate_fp16(val_loader, model, 0, len(val_loader), device, config, logger, writer)
+        model.print_alphas(logger)
         return
         # # ----------------------------
     # weights optimizer
@@ -113,7 +115,17 @@ def main():
     # if config.act_type != 'nn.ReLU':
     #     alpha_optim = torch.optim.Adam(model.alpha_aux(), config.alpha_lr, betas=(0.5, 0.999),
     #                                 weight_decay=config.alpha_weight_decay)
-    w_optim = torch.optim.Adam(model.weights_and_alpha(), config.w_mask_lr)
+
+    para_setting = [
+    {'params': model.weights(), 'lr': config.w_lr},
+    {'params': model.alpha_aux(), 'lr': config.w_mask_lr}
+]
+    # w_optim = torch.optim.Adam(model.weights_and_alpha(), config.w_mask_lr)
+    w_optim = torch.optim.Adam(para_setting)
+
+    if config.enable_lookahead: 
+        w_optim = Lookahead(w_optim)
+
     # w_optim = torch.optim.Adam(model.weights_and_alpha(), config.w_mask_lr, weight_decay=config.w_weight_decay)
     # w_optim = torch.optim.SGD(model.weights_and_alpha(), config.w_mask_lr)
     # w_optim = torch.optim.SGD(model.weights_and_alpha(), config.w_mask_lr, momentum=config.w_momentum,
@@ -269,13 +281,13 @@ def main():
         model.save_checkpoint(epoch, best_top1, is_best, filename=save_path)
         logger.info("Current best Prec@1 = {:.4%}".format(best_top1))
 
-        if (epoch % 20) == 0:
-            logger.info("Perform validation on training dataset. ")
-            if config.precision == 'full':
-                top1_train_wo_dropout = validate_train(train_loader, model, epoch, cur_step, device, config, logger, writer)
-            else:
-                top1_train_wo_dropout = validate_train_fp16(train_loader, model, epoch, cur_step, device, config, logger, writer)
-            logger.info("Final train Prec@1 = {:.4%}".format(top1_train_wo_dropout))
+        # if (epoch % 20) == 0:
+        #     logger.info("Perform validation on training dataset. ")
+        #     if config.precision == 'full':
+        #         top1_train_wo_dropout = validate_train(train_loader, model, epoch, cur_step, device, config, logger, writer)
+        #     else:
+        #         top1_train_wo_dropout = validate_train_fp16(train_loader, model, epoch, cur_step, device, config, logger, writer)
+        #     logger.info("Final train Prec@1 = {:.4%}".format(top1_train_wo_dropout))
 
     logger.info("Final best validation Prec@1 = {:.4%}".format(best_top1))
     # logger.info("Best Genotype = {}".format(best_genotype))

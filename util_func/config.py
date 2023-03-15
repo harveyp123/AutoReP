@@ -38,13 +38,14 @@ class BaseConfig(argparse.Namespace):
 
 class TrainCifarConfig(BaseConfig):
     def build_parser(self):
-        parser = get_parser("CIFAR-10/CIFAR-100/TinyImagenet Training config")
-        parser.add_argument('--dataset',  default='cifar10', help='cifar10 / cifar100')
+        parser = get_parser("CIFAR-10/CIFAR-100/TinyImagenet/ImageNet Training config")
+        parser.add_argument('--dataset',  default='cifar10', help='cifar10 / cifar100 / tiny_imagenet / imagenet')
         parser.add_argument('--data_path', default='./data/', help='Dataset path')
         parser.add_argument('--act_type', type=str, default='nn.ReLU', choices = ['nn.ReLU', 'ReLU_masked', 'ReLU_masked_spgrad', 
         'ReLU_masked_relay', 'ReLU_masked_spgrad_relay', 'ReLU_masked_autopoly_relay', 'ReLU_masked_autopoly', 'ReLU_masked_dapa_relay'],
              help='Which non-lienar function to be used in the training')
         parser.add_argument('--freezeact', action='store_true', default=False, help='Freeze the activation or not')
+        parser.add_argument('--enable_lookahead', action='store_true', default=False, help='Using lookahead optimizer or not')
         parser.add_argument('--degree', type=int, default=2, help='The degree of approximation for autopoly')
         parser.add_argument('--batch_size', type=int, default=256, help='batch size')
         
@@ -55,7 +56,7 @@ class TrainCifarConfig(BaseConfig):
         parser.add_argument('--w_momentum', type=float, default=0.9, help='momentum for weights')
         parser.add_argument('--w_weight_decay', type=float, default=5e-4, help='weight decay for weights')
         parser.add_argument('--enable_grad_norm', action='store_true', default=False, help='Using gradient normalization or not')
-        parser.add_argument('--w_grad_clip', type=float, default=4., help='gradient clipping for weights')
+        parser.add_argument('--w_grad_clip', type=float, default=5., help='gradient clipping for weights')
         parser.add_argument('--w_decay_epoch', type=int, default=20, help='lr decay for training')
         # parser.add_argument('--alpha_lr', type=float, default=5e-4, help='lr for alpha')
         parser.add_argument('--alpha_lr', type=float, default=2e-4, help='lr for alpha')
@@ -65,6 +66,8 @@ class TrainCifarConfig(BaseConfig):
         # parser.add_argument('--lamda', type=float, default=2e1, help='penalty iterm for ReLU mask')
         parser.add_argument('--scale_x1', type=float, default=1.0, help='Scaling factor for x term')
         parser.add_argument('--scale_x2', type=float, default=0.1, help='Scaling factor for x2 term')
+        parser.add_argument('--clip_x2_bool', action='store_true', default=False, help='clip x2 term or not')
+        parser.add_argument('--clip_x2', type=float, default=0.2, help='weight clipping for x2 term')
         parser.add_argument('--alpha_weight_decay', type=float, default=1e-3, help='weight decay for alpha')
         parser.add_argument('--print_freq', type=int, default=100, help='print frequency')
         parser.add_argument('--Num_mask', type=int, default=1, help='Number of pruning mask during training')
@@ -77,6 +80,8 @@ class TrainCifarConfig(BaseConfig):
         # parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true', help='evaluate model on validation set')
         parser.add_argument('-e', '--evaluate', default=None, type=str, metavar='PATH',
                             help='path to checkpoint (default: none), evaluate model on validation set')
+        
+        parser.add_argument('--pretrained', action='store_true', default=False, help='Using torchvision pretrained model or not')
         parser.add_argument('--pretrained_path', help='Pretained model path')
 
         parser.add_argument('--distil', action='store_true', default=False, help='Using distiling or not')
@@ -147,5 +152,3 @@ class TrainCifarConfig(BaseConfig):
         else:
             print("Dataset {} is not included yet".format(self.dataset))
         ####Need to add another else for tinyimaganet
-
-

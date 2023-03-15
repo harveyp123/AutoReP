@@ -8,6 +8,7 @@ import logging
 from models_util import *
 from models_cifar import *
 from models_snl import *
+import torchvision
 
 def replace_relu(model, replacement_fn):
     for name, module in model.named_children():
@@ -15,6 +16,20 @@ def replace_relu(model, replacement_fn):
             model._modules[name] = replacement_fn
         else:
             replace_relu(module, replacement_fn)
+
+def replace_siLU(model, replacement_fn):
+    for name, module in model.named_children():
+        if isinstance(module, nn.SiLU):
+            model._modules[name] = replacement_fn
+        else:
+            replace_siLU(module, replacement_fn)     
+# def replace_siLU(model):
+#     for name, module in model.named_children():
+#         if isinstance(module, nn.SiLU):
+#             model._modules[name] = nn.ReLU
+#         else:
+#             replace_siLU(module)  
+
 def _weights_init(m):
     classname = m.__class__.__name__
     #print(classname)
@@ -50,13 +65,39 @@ class model_ReLU_RP(nn.Module):
         #     self.model = eval(config.arch + '(num_classes = 10)')
         # else:
         #     print("dataset not supported yet")
-        self.model = eval(config.arch + '(config)')
-        self.model.apply(_weights_init)
+
+        if config.dataset != "imagenet":
+            self.model = eval(config.arch + '(config)')
+            self.model.apply(_weights_init)
+        else:
+            weight = ''
+            if config.pretrained:
+                if config.arch == 'resnet18':
+                    weight = "weights = torchvision.models.ResNet18_Weights.DEFAULT"
+                elif config.arch == 'resnet50':
+                    weight = "weights = torchvision.models.ResNet50_Weights.DEFAULT"
+                elif config.arch == "efficientnet_b0":
+                    weight = "weights = torchvision.models.EfficientNet_B0_Weights.DEFAULT"
+                elif config.arch == "efficientnet_b2":#torchvision.models.efficientnet_b2
+                    weight = "weights = torchvision.models.EfficientNet_B2_Weights.DEFAULT"
+                elif config.arch == "regnet_x_1_6gf":
+                    weight = "weights = torchvision.models.RegNet_X_1_6GF_Weights.DEFAULT"
+                elif config.arch == "regnet_x_800mf":
+                    weight = "weights = torchvision.models.RegNet_X_800MF_Weights.DEFAULT"
+            self.model = eval("torchvision.models." + config.arch + "({})".format(weight)) 
+            # self.model = torchvision.models.regnet_x_1_6gf
+            # self.model = eval("torchvision.models." + config.arch + "(pretrained = config.pretrained)") 
+            #### Change maxpool to avepool
+            if config.arch == 'resnet18':
+                self.model.maxpool = nn.AvgPool2d(kernel_size=3, stride=2, padding=1)
         self.Num_mask = config.Num_mask #### Initialize how many masks
         self.x_size = config.x_size #### Input image size, for example in cifar 10, it's [1, 3, 32, 32]
         self.sel_mask = 0
         ReLU_masked_model = eval(config.act_type + '(config)') #ReLU_masked()
-        replace_relu(self, ReLU_masked_model)
+        if "efficientnet" in config.arch:
+            replace_siLU(self, ReLU_masked_model)
+        else: 
+            replace_relu(self, ReLU_masked_model)
         #### Get the name and model_stat of sparse ReLU model ####
         self._ReLU_sp_models = []
         for name, model_stat in self.named_modules(): 
@@ -73,6 +114,7 @@ class model_ReLU_RP(nn.Module):
 
         #### Initialize alpha_aux pameters in ReLU_sp model ####
         #### through single step inference ####
+        self.eval()
         with torch.no_grad():
             in_mock_tensor = torch.Tensor(*self.x_size)
             self.forward(in_mock_tensor)

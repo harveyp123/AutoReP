@@ -354,10 +354,13 @@ class ReLU_masked_dapa_relay(nn.Module):
         self.freezeact = config.freezeact
         self.scale_x1 = config.scale_x1
         self.scale_x2 = config.scale_x2
+        self.clip_x2 = config.clip_x2
+        self.clip_x2_bool = config.clip_x2_bool
         self.out_act_rep = eval("x{}act_auto".format(self.degree))
         self.var_min = config.var_min
         self.dropout = nn.Dropout2d(p=dropRate, inplace=True)
         self.p = dropRate
+    
 
         self.itr_cnt = nn.Parameter(torch.Tensor([0.]))
     @torch.no_grad()
@@ -446,6 +449,12 @@ class ReLU_masked_dapa_relay(nn.Module):
                 getattr(self, "poly_para_{}_{}".format(self.current_feature, i)).data.copy_(para[i].view(*para_size))
         # print("Updated successfully: {}", eval("self.poly_para_{}_{}".format(self.current_feature, i)))
         # exit()
+        
+        ############### Clip the polynomial parameter of x2 term to -0.2 to 0.2
+        if self.clip_x2_bool:
+            getattr(self, "poly_para_{}_{}".format(self.current_feature, 2)).data.copy_(
+                        torch.clamp(eval("self.poly_para_{}_{}".format(self.current_feature, 2)), -1 * self.clip_x2, self.clip_x2))
+
     @torch.no_grad()
     def update_mask(self):
         for feature_i in range(self.num_feature):

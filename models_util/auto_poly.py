@@ -12,6 +12,15 @@ def x2act_auto(x_input, para, scale_x2 = 1):
         x2act(x) = w2*x^2 + w1*x+w0
     '''
     return scale_x2*para[2] * torch.mul(x_input, x_input) + para[1] * x_input + para[0]
+
+# ######## y = x^2 + x ########
+# def x2act_auto(x_input, para, scale_x2 = 1):
+#     '''
+#     Applies the ax + b Unit (x1act) function element-wise:
+#         x2act(x) = x^2
+#     '''
+#     return torch.mul(x_input, x_input) + x_input
+
 # def x2act_auto(x_input, para, scale_x2 = 1):
 #     '''
 #     Applies the ax + b Unit (x1act) function element-wise:

@@ -31,6 +31,16 @@ mkdir -p ./out/
 #  --optim cosine --act_type nn.ReLU > ./out/wide_resnet_22_8_cifar10_baseline.txt &
 # nohup python -u train_cifar.py --gpu 1 --arch wide_resnet_22_8 --w_lr 0.1 --mask_epochs 0 --epochs 400 --dataset cifar100\
 #  --optim cosine --act_type nn.ReLU > ./out/wide_resnet_22_8_cifar100_baseline.txt &
-nohup python -u train_cifar.py --gpu 3 --arch wide_resnet_22_8 --w_lr 0.1 --mask_epochs 0 --epochs 400 --dataset tiny_imagenet --data_path "/data/tiny-imagenet-200"\
+nohup python -u train_cifar.py --gpu 0 --arch wide_resnet_22_8 --w_lr 0.1 --mask_epochs 0 --epochs 400 --dataset tiny_imagenet --data_path "/data/tiny-imagenet-200"\
  --optim cosine --act_type nn.ReLU > ./out/wide_resnet_22_8_tiny_imagenet_baseline.txt &
 
+# nohup python -u train_cifar.py --gpu 0 --arch resnet34_in --w_lr 0.1001 --mask_epochs 0 --epochs 400 --dataset cifar10\
+#  --optim cosine --act_type nn.ReLU --precision half > ./out/resnet34_cifar10_baseline.txt &
+# nohup python -u train_cifar.py --gpu 1 --arch resnet34_in --w_lr 0.1001 --mask_epochs 0 --epochs 400 --dataset cifar100\
+#  --optim cosine --act_type nn.ReLU --precision half > ./out/resnet34_cifar100_baseline.txt &
+
+# nohup python -u train_cifar.py --gpu 0 --arch resnet18_s --w_lr 0.1 --mask_epochs 0 --epochs 400 --dataset cifar10\
+#  --optim cosine --act_type nn.ReLU --precision half > ./out/resnet18_s_cifar10_baseline.txt &
+
+# nohup python -u train_cifar.py --gpu 1 --arch resnet18_s --w_lr 0.1001 --mask_epochs 0 --epochs 400 --dataset cifar100\
+#  --optim cosine --act_type nn.ReLU --precision half > ./out/resnet18_s_cifar100_baseline.txt &

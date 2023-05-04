@@ -4,7 +4,7 @@
 Some steps to setup the environment and download dataset
 ```bash
 # Create a environment
-conda create –name AutoReP
+conda create --name AutoReP
 #or
 conda create --prefix=${HOME}/.conda/envs/AutoReP python=3.9
 # Then activate the environment

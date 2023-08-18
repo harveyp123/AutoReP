@@ -2,10 +2,10 @@
 
 Please cite our paper if you use the code ✔
 ```
-@inproceedings{peng2023PASNet,
-  title={PASNet: Polynomial Architecture Search Framework for Two-party Computation-based Secure Neural Network Deployment},
-  author={Hongwu Peng, Shanglin Zhou, Yukui Luo, Nuo Xu, Shijin Duan, Ran Ran, Jiahui Zhao, Chenghong Wang, Tong Geng, Wujie Wen, Xiaolin Xu and Caiwen Ding},
-  booktitle={Proceedings of the 60th ACM/IEEE Design Automation Conference},
+@inproceedings{peng2023AutoReP,
+  title={AutoReP: Automatic ReLU Replacement for Fast Private Network Inference},
+  author={Hongwu Peng, Shaoyi Huang, Tong Zhou, Yukui Luo, Chenghong Wang, Zigeng Wang, Jiahui Zhao, Xi Xie, Ang Li, Tony Geng, Kaleel Mahmood, Wujie Wen, Xiaolin Xu, Caiwen Ding},
+  booktitle={Proceedings of the 2023 International Conference on Computer Vision(ICCV)},
   year={2023}
 }
 ```

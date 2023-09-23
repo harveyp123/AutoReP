@@ -10,6 +10,8 @@ Please cite our paper if you use the code ✔
 }
 ```
 
+<!-- ![comp](./figure/overview.png) -->
+<img src="./figure/overview.png" width="1000">
 
 # ReLU Reduction/ ReLU Peplacement
 

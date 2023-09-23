@@ -2,7 +2,7 @@
 
 Please cite our paper if you use the code ✔
 ```
-@inproceedings{peng2023AutoReP,
+@inproceedings{peng2023autorep,
   title={AutoReP: Automatic ReLU Replacement for Fast Private Network Inference},
   author={Peng, Hongwu and Huang, Shaoyi and Zhou, Tong and others},
   booktitle={Proceedings of the 2023 International Conference on Computer Vision(ICCV)},

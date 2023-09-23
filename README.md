@@ -9,9 +9,18 @@ Please cite our paper if you use the code ✔
   year={2023}
 }
 ```
+## Overview of the AutoReP Framework
 
 <!-- ![comp](./figure/overview.png) -->
 <img src="./figure/overview.png" width="1000">
+
+We propose **AutoReP** Framework for **Auto**matic ReLU **Rep**lacement for multi-party computation based encrypted inference accelerating. 
+
+* ***Parameterized discrete indicator function***, we introduce a parameterized discrete indicator function co-trained with model weights until convergence. Our approach allows for fine-grained selection of ReLU and polynomial functions at the pixel level, resulting in a more optimized and efficient model.
+
+* ***Hysteresis loop***, we present a hysteresis loop update function to enhance the stability of the binarized ReLU replacement training process, which enables a recoverable and stable replacement and leads to better convergence and higher accuracy.
+
+* ***Distribution-aware polynomial approximation (DaPa)*** offers a novel solution to the problem of accurately approximating ReLUs using polynomial functions under specific feature distributions. By minimizing the structural difference between the original and replaced networks and maintaining high model expressivity.
 
 # ReLU Reduction/ ReLU Peplacement
 
